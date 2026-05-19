@@ -1,5 +1,5 @@
-const CACHE_VERSION = 'archery-journal-v16-restore-1-12-runtime';
-const APP_VERSION = '1.16';
+const CACHE_VERSION = 'archery-journal-v20-dev-1';
+const APP_VERSION = '2.0-dev.1';
 const APP_SHELL = [
   './',
   './index.html',
