@@ -1,5 +1,5 @@
-const CACHE_VERSION = 'archery-journal-v12-runtime-patch-fix';
-const APP_VERSION = '1.11';
+const CACHE_VERSION = 'archery-journal-v13-apply-data-once';
+const APP_VERSION = '1.12';
 const APP_SHELL = [
   './',
   './index.html',
@@ -65,6 +65,7 @@ const PATCH_SCRIPT = `
 (function(){
   var lastTouchEnd = 0;
   var updateInProgress = false;
+  var dataAppliedOnce = false;
   var STORAGE_KEY = 'archery-journal:data:v3';
   var SAVE_DEBOUNCE_MS = 200;
   var saveTimer = null;
@@ -113,6 +114,9 @@ const PATCH_SCRIPT = `
   }
 
   function applyPreloadedData(){
+    if (dataAppliedOnce) return;
+    dataAppliedOnce = true;
+
     var data = window.__ARCHERY_JOURNAL_SAVED_DATA__;
     if (!data || !Array.isArray(data.sessions)) return;
 
@@ -245,7 +249,7 @@ const PATCH_SCRIPT = `
   else boot();
 
   ['click','input','change','focusout'].forEach(function(eventName){
-    document.addEventListener(eventName, function(){ setTimeout(function(){ boot(); saveAppDataSoon(); }, 0); }, true);
+    document.addEventListener(eventName, function(){ setTimeout(function(){ addUpdateButton(); addVersionFooter(); saveAppDataSoon(); }, 0); }, true);
   });
 
   document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'hidden') saveAppDataNow(); });
