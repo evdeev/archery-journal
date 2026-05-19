@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'archery-journal-v2-safe-area';
+const CACHE_VERSION = 'archery-journal-v3-disable-zoom';
 const APP_SHELL = [
   './',
   './index.html',
@@ -16,15 +16,51 @@ const APP_SHELL = [
 
 const SAFE_AREA_CSS = `
     :root{--safe-top: env(safe-area-inset-top, 0px);}
+    html,body{touch-action:manipulation;overscroll-behavior:none;-webkit-text-size-adjust:100%;}
+    button,input,textarea,select{touch-action:manipulation;font-size:16px;}
     .app,.root-app{padding-top:calc(10px + var(--safe-top)) !important;}
     .settings-screen,.create-screen,.note-screen,.equipment-screen{padding-top:calc(10px + var(--safe-top)) !important;}
     .settings-nav{position:relative;}
     .note-textarea{min-height:calc(100vh - 92px - var(--safe-top) - var(--safe-bottom)) !important;}
 `;
 
+const DISABLE_ZOOM_SCRIPT = `
+<script>
+(function(){
+  var lastTouchEnd = 0;
+  document.addEventListener('touchend', function(event) {
+    var now = Date.now();
+    if (now - lastTouchEnd <= 350) event.preventDefault();
+    lastTouchEnd = now;
+  }, { passive: false });
+
+  document.addEventListener('gesturestart', function(event) {
+    event.preventDefault();
+  }, { passive: false });
+
+  document.addEventListener('dblclick', function(event) {
+    event.preventDefault();
+  }, { passive: false });
+})();
+</script>`;
+
 function patchHtml(html) {
-  if (html.includes('/* iOS safe area hotfix */')) return html;
-  return html.replace('</style>', `\n    /* iOS safe area hotfix */\n${SAFE_AREA_CSS}\n</style>`);
+  let patched = html;
+
+  patched = patched.replace(
+    /<meta name="viewport" content="[^"]*"\s*\/?>/,
+    '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />'
+  );
+
+  if (!patched.includes('/* iOS safe area hotfix */')) {
+    patched = patched.replace('</style>', `\n    /* iOS safe area hotfix */\n${SAFE_AREA_CSS}\n</style>`);
+  }
+
+  if (!patched.includes('lastTouchEnd <= 350')) {
+    patched = patched.replace('</body>', `${DISABLE_ZOOM_SCRIPT}\n</body>`);
+  }
+
+  return patched;
 }
 
 async function htmlResponse(response) {
