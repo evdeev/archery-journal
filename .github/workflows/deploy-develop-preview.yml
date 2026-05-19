@@ -26,7 +26,10 @@ jobs:
 
           python3 <<'PY'
           from pathlib import Path
+          import json
           import re
+
+          PREVIEW_BASE = '/archery-journal/dev/'
 
           index = Path('preview/index.html')
           if index.exists():
@@ -37,31 +40,39 @@ jobs:
               '<title>Журнал лучника DEV</title>'
             )
 
-            html = html.replace(
-              'Журнал лучника',
-              'Журнал лучника DEV',
-              1
-            )
-
             html = re.sub(
               r'<meta name="apple-mobile-web-app-title" content="[^"]+" />',
               '<meta name="apple-mobile-web-app-title" content="Archery DEV" />',
               html
             )
 
+            # Cache-bust manifest and service worker references for iOS Home Screen PWA.
+            html = html.replace(
+              '<link rel="manifest" href="./manifest.webmanifest" />',
+              '<link rel="manifest" href="./manifest.webmanifest?v=dev" />'
+            )
+            html = html.replace(
+              "navigator.serviceWorker.register('./sw.js')",
+              "navigator.serviceWorker.register('./sw.js?v=dev', { scope: './' })"
+            )
+
             index.write_text(html, encoding='utf-8')
 
           manifest = Path('preview/manifest.webmanifest')
           if manifest.exists():
-            text = manifest.read_text(encoding='utf-8')
-            text = text.replace('Журнал лучника', 'Журнал лучника DEV')
-            text = text.replace('archery-journal', 'archery-journal-dev')
-            manifest.write_text(text, encoding='utf-8')
+            data = json.loads(manifest.read_text(encoding='utf-8'))
+            data['name'] = 'Журнал лучника DEV'
+            data['short_name'] = 'Лучник DEV'
+            data['id'] = PREVIEW_BASE
+            data['start_url'] = PREVIEW_BASE + '?devPwa=1'
+            data['scope'] = PREVIEW_BASE
+            manifest.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
 
           sw = Path('preview/sw.js')
           if sw.exists():
             text = sw.read_text(encoding='utf-8')
             text = text.replace('archery-journal-', 'archery-journal-dev-')
+            text = text.replace("const APP_VERSION = '1.16';", "const APP_VERSION = 'DEV';")
             sw.write_text(text, encoding='utf-8')
           PY
 
