@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'archery-journal-v5-update-without-unregister';
+const CACHE_VERSION = 'archery-journal-v6-update-overlay';
 const APP_SHELL = [
   './',
   './index.html',
@@ -22,12 +22,22 @@ const SAFE_AREA_CSS = `
     .settings-screen,.create-screen,.note-screen,.equipment-screen{padding-top:calc(10px + var(--safe-top)) !important;}
     .settings-nav{position:relative;}
     .note-textarea{min-height:calc(100vh - 92px - var(--safe-top) - var(--safe-bottom)) !important;}
+    .app-update-overlay{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:rgba(242,242,247,.72);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);padding:24px;}
+    [data-theme="dark"] .app-update-overlay{background:rgba(0,0,0,.62);}
+    .app-update-card{width:min(272px,100%);background:var(--card);border-radius:22px;box-shadow:0 18px 55px rgba(0,0,0,.18);padding:24px 20px 20px;text-align:center;color:var(--text);}
+    .app-update-spinner{width:34px;height:34px;margin:0 auto 16px;border-radius:50%;border:3px solid rgba(142,142,147,.22);border-top-color:var(--blue);animation:appUpdateSpin .8s linear infinite;}
+    .app-update-title{font-size:17px;font-weight:700;line-height:22px;margin-bottom:5px;}
+    .app-update-subtitle{font-size:14px;line-height:19px;color:var(--muted);}
+    #updateAppButton[disabled]{opacity:.55;}
+    @keyframes appUpdateSpin{to{transform:rotate(360deg)}}
 `;
 
 const APP_UPDATE_SCRIPT = `
 <script>
 (function(){
   var lastTouchEnd = 0;
+  var updateInProgress = false;
+
   document.addEventListener('touchend', function(event) {
     var now = Date.now();
     if (now - lastTouchEnd <= 350) event.preventDefault();
@@ -42,7 +52,31 @@ const APP_UPDATE_SCRIPT = `
     event.preventDefault();
   }, { passive: false });
 
-  async function hardRefreshApp(){
+  function showUpdateOverlay(){
+    if (document.getElementById('appUpdateOverlay')) return;
+
+    var overlay = document.createElement('div');
+    overlay.className = 'app-update-overlay';
+    overlay.id = 'appUpdateOverlay';
+    overlay.setAttribute('role','status');
+    overlay.setAttribute('aria-live','polite');
+    overlay.innerHTML = '<div class="app-update-card"><div class="app-update-spinner"></div><div class="app-update-title">Обновляем приложение</div><div class="app-update-subtitle">Загружаем новую версию и очищаем кэш…</div></div>';
+    document.body.appendChild(overlay);
+  }
+
+  async function hardRefreshApp(event){
+    if (event) event.preventDefault();
+    if (updateInProgress) return;
+    updateInProgress = true;
+
+    var button = document.getElementById('updateAppButton');
+    if (button) {
+      button.disabled = true;
+      button.textContent = 'Обновление…';
+    }
+
+    showUpdateOverlay();
+
     try {
       if ('caches' in window) {
         var keys = await caches.keys();
@@ -60,9 +94,11 @@ const APP_UPDATE_SCRIPT = `
       console.warn('App update cleanup failed', error);
     }
 
-    var url = new URL(window.location.href);
-    url.searchParams.set('appUpdate', Date.now().toString());
-    window.location.replace(url.toString());
+    setTimeout(function(){
+      var url = new URL(window.location.href);
+      url.searchParams.set('appUpdate', Date.now().toString());
+      window.location.replace(url.toString());
+    }, 350);
   }
 
   function addUpdateButton(){
