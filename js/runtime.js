@@ -1,5 +1,5 @@
 /* Archery Journal v2 runtime helpers. */
-const APP_VERSION = '2.0-dev.3';
+const APP_VERSION = '2.0-dev.4';
 const STORAGE_KEY = 'archery-journal:data:v3';
 
 let archerySaveTimer = null;
@@ -16,7 +16,7 @@ function archeryLoadScriptOnce(id, src) {
 }
 
 function archeryLoadStorageModule() {
-  archeryLoadScriptOnce('archeryStorageModule', './js/storage.js');
+  archeryLoadScriptOnce('archeryStorageModule', './js/storage.js?v=' + encodeURIComponent(APP_VERSION));
 }
 
 function archeryGetSessions() {
@@ -79,7 +79,6 @@ function archeryApplyStoredData() {
 }
 
 function archeryInjectRuntimeCss() {
-  // Kept for backward compatibility during v2 migration.
   // Runtime styles now live in css/runtime.css.
 }
 
@@ -88,14 +87,19 @@ function archeryAddVersionFooter() {
   const settingsRoot = rootSettings ? rootSettings.querySelector('.root-app') : null;
   if (!settingsRoot) return;
 
+  document.querySelectorAll('.settings-version-footer').forEach((node, index) => {
+    if (index > 0 || node.parentElement !== settingsRoot) node.remove();
+  });
+
   let footer = document.getElementById('settingsVersionFooter');
-  if (!footer) {
+  if (!footer || footer.parentElement !== settingsRoot) {
     footer = document.createElement('div');
     footer.className = 'settings-version-footer';
     footer.id = 'settingsVersionFooter';
     settingsRoot.appendChild(footer);
   }
 
+  footer.dataset.appVersion = APP_VERSION;
   footer.innerHTML = `<div class="settings-version-value">Версия ${APP_VERSION}</div><div class="settings-version-copy">DEV · © 2026 Boris Evdeev</div>`;
 }
 
@@ -131,8 +135,8 @@ async function archeryUpdateApp(event) {
     }
 
     if ('serviceWorker' in navigator) {
-      const registration = await navigator.serviceWorker.getRegistration();
-      if (registration) await registration.update();
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map((registration) => registration.update()));
     }
   } catch (error) {
     console.warn('App update cleanup failed', error);
