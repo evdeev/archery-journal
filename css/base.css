@@ -1,0 +1,25 @@
+/* Base tokens, theme, typography and generic iOS primitives. */
+/* Archery Journal v2.0 extracted styles */
+:root{
+      --bg:#f2f2f7; --card:#fff; --text:#000; --muted:#8e8e93; --line:#d9d9de;
+      --accent:#ff3b30; --blue:#007aff; --chip:#eeeeef; --chip-active:#ffe3e2;
+      --active-row:rgba(255,59,48,.055); --shadow:0 1px 0 rgba(0,0,0,.04);
+      --safe-bottom: env(safe-area-inset-bottom, 0px); --field:#f2f2f7;
+    }
+    [data-theme="dark"]{
+      --bg:#000; --card:#1c1c1e; --text:#fff; --muted:#8e8e93; --line:#38383a;
+      --accent:#ff453a; --blue:#0a84ff; --chip:#2c2c2e; --chip-active:#3a2423;
+      --active-row:rgba(255,69,58,.12); --shadow:none; --field:#2c2c2e;
+    }
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display",Inter,Arial,sans-serif;font-size:17px;font-weight:400;}
+    .app{max-width:430px;margin:0 auto;min-height:100vh;padding:10px 16px calc(320px + var(--safe-bottom));}
+    .nav{height:48px;display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+    .nav-btn{width:42px;height:42px;border:0;border-radius:50%;background:transparent;color:var(--blue);font-size:28px;line-height:1;display:grid;place-items:center;cursor:pointer;}
+    .gear svg{width:24px;height:24px;display:block;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+    .title{text-align:center;font-weight:700;font-size:17px;line-height:22px;}
+    .subtitle{text-align:center;color:var(--muted);font-size:14px;margin-top:2px;font-weight:500;}
+    .summary{margin:14px 0 18px;text-align:center;}
+    .summary .total{font-size:44px;line-height:48px;font-weight:700;letter-spacing:-1.1px;}
+    .summary .denom{color:var(--muted);font-weight:600;}
+    .summary .meta{color:var(--muted);font-size:15px;margin-top:4px;}
