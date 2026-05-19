@@ -1,0 +1,266 @@
+name: Patch index runtime
+
+on:
+  push:
+    paths:
+      - '.github/workflows/patch-index-runtime.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-index-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Patch index.html with direct runtime
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          path = Path('index.html')
+          html = path.read_text(encoding='utf-8')
+          app_version = '1.15'
+
+          html = html.replace(
+            '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />',
+            '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />'
+          )
+
+          css = r'''
+
+    /* Archery Journal runtime v1.15 */
+    :root{--safe-top: env(safe-area-inset-top, 0px);}
+    html,body{touch-action:manipulation;overscroll-behavior:none;-webkit-text-size-adjust:100%;}
+    button,input,textarea,select{touch-action:manipulation;font-size:16px;}
+    .app,.root-app{padding-top:calc(10px + var(--safe-top)) !important;}
+    .settings-screen,.create-screen,.note-screen,.equipment-screen{padding-top:calc(10px + var(--safe-top)) !important;}
+    .session-delete-group{margin-top:24px;}
+    .settings-version-footer{padding:36px 24px calc(28px + env(safe-area-inset-bottom,0px));text-align:center;color:#8e8e93;}
+    .settings-version-value{font-size:17px;line-height:22px;margin-bottom:10px;}
+    .settings-version-copy{font-size:13px;line-height:18px;}
+    .app-update-overlay{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:rgba(242,242,247,.72);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);padding:24px;}
+    [data-theme="dark"] .app-update-overlay{background:rgba(0,0,0,.62);}
+    .app-update-card{width:min(272px,100%);background:var(--card);border-radius:22px;box-shadow:0 18px 55px rgba(0,0,0,.18);padding:24px 20px 20px;text-align:center;color:var(--text);}
+    .app-update-spinner{width:34px;height:34px;margin:0 auto 16px;border-radius:50%;border:3px solid rgba(142,142,147,.22);border-top-color:var(--blue);animation:appUpdateSpin .8s linear infinite;}
+    .app-update-title{font-size:17px;font-weight:700;line-height:22px;margin-bottom:5px;}
+    .app-update-subtitle{font-size:14px;line-height:19px;color:var(--muted);}
+    #updateAppButton[disabled]{opacity:.55;}
+    @keyframes appUpdateSpin{to{transform:rotate(360deg)}}
+'''
+          if 'Archery Journal runtime v1.15' not in html:
+            html = html.replace('\n</style>', css + '\n</style>')
+
+          data_group_old = '''        <button class="equipment-delete-row" id="exportEquipmentButton" type="button" style="color:var(--blue)">Экспортировать экипировку</button>
+        <button class="equipment-delete-row" id="resetAppButton" type="button">Очистить</button>'''
+          data_group_new = '''        <button class="equipment-delete-row" id="exportEquipmentButton" type="button" style="color:var(--blue)">Экспортировать экипировку</button>
+        <button class="equipment-delete-row" id="updateAppButton" type="button" style="color:var(--blue)">Обновить приложение</button>
+        <button class="equipment-delete-row" id="resetAppButton" type="button">Очистить</button>'''
+          if 'id="updateAppButton"' not in html:
+            html = html.replace(data_group_old, data_group_new)
+
+          settings_footer_marker = '<div class="settings-version-value">Версия '
+          root_settings_close = '''      <input type="file" id="importHistoryInput" accept=".json" style="display:none">
+      <input type="file" id="importEquipmentInput" accept=".json" style="display:none">
+    </main>'''
+          root_settings_new = f'''      <input type="file" id="importHistoryInput" accept=".json" style="display:none">
+      <input type="file" id="importEquipmentInput" accept=".json" style="display:none">
+      <div class="settings-version-footer" id="settingsVersionFooter"><div class="settings-version-value">Версия {app_version}</div><div class="settings-version-copy">© 2026 Boris Evdeev</div></div>
+    </main>'''
+          if settings_footer_marker not in html:
+            html = html.replace(root_settings_close, root_settings_new)
+          else:
+            import re
+            html = re.sub(r'<div class="settings-version-value">Версия [^<]+</div>', f'<div class="settings-version-value">Версия {app_version}</div>', html)
+
+          session_settings_old = '''        <div class="setting-row"><span class="setting-label">Стрелы</span><select class="text-input" id="sessionArrowSelect"></select></div>
+      </section>
+    </div>
+  </section>'''
+          session_settings_new = '''        <div class="setting-row"><span class="setting-label">Стрелы</span><select class="text-input" id="sessionArrowSelect"></select></div>
+      </section>
+      <section class="group session-delete-group">
+        <button class="equipment-delete-row" id="deleteSessionButton" type="button">Удалить сессию</button>
+      </section>
+    </div>
+  </section>'''
+          if 'id="deleteSessionButton"' not in html:
+            html = html.replace(session_settings_old, session_settings_new)
+
+          runtime = f'''
+<script id="archeryJournalDirectRuntime">
+(function(){{
+  var APP_VERSION = '{app_version}';
+  var STORAGE_KEY = 'archery-journal:data:v3';
+  var saveTimer = null;
+  var dataAppliedOnce = false;
+  var lastTouchEnd = 0;
+
+  document.addEventListener('touchend', function(event) {{
+    var now = Date.now();
+    if (now - lastTouchEnd <= 350) event.preventDefault();
+    lastTouchEnd = now;
+  }}, {{ passive: false }});
+  document.addEventListener('gesturestart', function(event) {{ event.preventDefault(); }}, {{ passive: false }});
+  document.addEventListener('dblclick', function(event) {{ event.preventDefault(); }}, {{ passive: false }});
+
+  function getSessions(){{ try {{ return (typeof sessions !== 'undefined' && Array.isArray(sessions)) ? sessions : []; }} catch(e) {{ return []; }} }}
+  function getCurrentSessionId(){{ try {{ return (typeof currentSessionId !== 'undefined') ? currentSessionId : null; }} catch(e) {{ return null; }} }}
+  function getEquipment(){{ try {{ return (typeof equipment !== 'undefined' && equipment) ? equipment : null; }} catch(e) {{ return null; }} }}
+
+  function saveAppDataNow(){{
+    try {{
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({{
+        version: 3,
+        savedAt: new Date().toISOString(),
+        sessions: getSessions(),
+        currentSessionId: getCurrentSessionId(),
+        equipment: getEquipment()
+      }}));
+    }} catch(error) {{ console.warn('Unable to save Archery Journal data', error); }}
+  }}
+  function saveAppDataSoon(){{ clearTimeout(saveTimer); saveTimer = setTimeout(saveAppDataNow, 200); }}
+
+  function applyStoredData(){{
+    if (dataAppliedOnce) return;
+    dataAppliedOnce = true;
+    try {{
+      var raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem('archery-journal:data:v2') || localStorage.getItem('archery-journal:data:v1');
+      if (!raw) return;
+      var data = JSON.parse(raw);
+      if (!data || !Array.isArray(data.sessions)) return;
+      if (typeof sessions !== 'undefined') sessions = data.sessions;
+      if (typeof currentSessionId !== 'undefined') currentSessionId = data.currentSessionId || (sessions[0] && sessions[0].id) || null;
+      if (typeof session !== 'undefined') session = sessions.find(function(item){{ return item.id === currentSessionId; }}) || sessions[0] || null;
+      if (typeof seed !== 'undefined') seed = session ? session.seed : [];
+      if (data.equipment && typeof equipment !== 'undefined' && equipment) Object.assign(equipment, data.equipment);
+      if (typeof renderHistory === 'function') renderHistory();
+      if (typeof renderStats === 'function') renderStats();
+      if (typeof renderEquipment === 'function') renderEquipment();
+      if (typeof render === 'function' && typeof session !== 'undefined' && session) render();
+    }} catch(error) {{ console.warn('Unable to restore Archery Journal data', error); }}
+  }}
+
+  function showUpdateOverlay(){{
+    if (document.getElementById('appUpdateOverlay')) return;
+    var overlay = document.createElement('div');
+    overlay.className = 'app-update-overlay';
+    overlay.id = 'appUpdateOverlay';
+    overlay.setAttribute('role','status');
+    overlay.setAttribute('aria-live','polite');
+    overlay.innerHTML = '<div class="app-update-card"><div class="app-update-spinner"></div><div class="app-update-title">Обновляем приложение</div><div class="app-update-subtitle">Загружаем новую версию и очищаем кэш…</div></div>';
+    document.body.appendChild(overlay);
+  }}
+
+  async function updateApp(event){{
+    if (event) event.preventDefault();
+    saveAppDataNow();
+    sessionStorage.setItem('archery-journal:return-settings','1');
+    var button = document.getElementById('updateAppButton');
+    if (button) {{ button.disabled = true; button.textContent = 'Обновление…'; }}
+    showUpdateOverlay();
+    try {{
+      if ('caches' in window) {{
+        var keys = await caches.keys();
+        await Promise.all(keys.filter(function(key){{ return key.indexOf('archery-journal-') === 0; }}).map(function(key){{ return caches.delete(key); }}));
+      }}
+      if ('serviceWorker' in navigator) {{
+        var registration = await navigator.serviceWorker.getRegistration();
+        if (registration) await registration.update();
+      }}
+    }} catch(error) {{ console.warn('App update cleanup failed', error); }}
+    setTimeout(function(){{
+      var url = new URL(window.location.href);
+      url.searchParams.set('appUpdate', Date.now().toString());
+      url.searchParams.set('tab','settings');
+      window.location.replace(url.toString());
+    }}, 350);
+  }}
+
+  function deleteCurrentSession(event){{
+    if (event) event.preventDefault();
+    if (typeof session === 'undefined' || !session || !session.id) return;
+    var ok = confirm('Удалить эту сессию?\\n\\nЭто действие нельзя отменить.');
+    if (!ok) return;
+    var deletedId = session.id;
+    if (typeof sessions !== 'undefined' && Array.isArray(sessions)) sessions = sessions.filter(function(item){{ return item.id !== deletedId; }});
+    if (typeof currentSessionId !== 'undefined') currentSessionId = sessions[0] ? sessions[0].id : null;
+    if (typeof session !== 'undefined') session = sessions[0] || null;
+    if (typeof seed !== 'undefined') seed = session ? session.seed : [];
+    if (typeof active !== 'undefined') active = null;
+    if (typeof keyboardVisible !== 'undefined') keyboardVisible = false;
+    saveAppDataNow();
+    document.getElementById('settingsScreen')?.classList.remove('open');
+    if (typeof hideKeyboardSilent === 'function') hideKeyboardSilent();
+    if (typeof showRoot === 'function') showRoot('history');
+    if (typeof renderHistory === 'function') renderHistory();
+    if (typeof renderStats === 'function') renderStats();
+  }}
+
+  function boot(){{
+    applyStoredData();
+    var updateButton = document.getElementById('updateAppButton');
+    if (updateButton) updateButton.onclick = updateApp;
+    var deleteButton = document.getElementById('deleteSessionButton');
+    if (deleteButton) deleteButton.onclick = deleteCurrentSession;
+    var versionFooter = document.getElementById('settingsVersionFooter');
+    if (versionFooter) versionFooter.querySelector('.settings-version-value').textContent = 'Версия ' + APP_VERSION;
+    if (sessionStorage.getItem('archery-journal:return-settings') === '1' || new URL(location.href).searchParams.get('tab') === 'settings') {{
+      sessionStorage.removeItem('archery-journal:return-settings');
+      setTimeout(function(){{ document.querySelector('.tab[data-tab="settings"]')?.click(); }}, 0);
+      setTimeout(function(){{ document.querySelector('.tab[data-tab="settings"]')?.click(); }}, 150);
+    }}
+    saveAppDataSoon();
+  }}
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+  ['click','input','change','focusout'].forEach(function(eventName){{
+    document.addEventListener(eventName, function(){{ setTimeout(saveAppDataSoon, 0); }}, true);
+  }});
+  document.addEventListener('visibilitychange', function(){{ if (document.visibilityState === 'hidden') saveAppDataNow(); }});
+  window.addEventListener('pagehide', saveAppDataNow);
+  setInterval(saveAppDataNow, 5000);
+}})();
+</script>
+'''
+
+          import re
+          html = re.sub(r'<script id="archeryJournalDirectRuntime">[\s\S]*?</script>\s*', '', html)
+          html = html.replace("\n\n<script>\nif ('serviceWorker' in navigator)", runtime + "\n<script>\nif ('serviceWorker' in navigator)")
+
+          path.write_text(html, encoding='utf-8')
+          PY
+
+      - name: Update changelog
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          path = Path('CHANGELOG.md')
+          text = path.read_text(encoding='utf-8')
+          section = '''## 1.15
+
+- Runtime-код перенесен напрямую в index.html, чтобы не зависеть от service worker injection.
+- Кнопка «Обновить приложение» теперь находится в HTML приложения.
+- Footer версии теперь находится в HTML приложения.
+- Кнопка «Удалить сессию» теперь находится в HTML настроек сессии.
+- Добавлена более надежная логика сохранения состояния и удаления сессии без зависимости от закэшированного runtime.
+
+'''
+          if '## 1.15' not in text:
+            text = text.replace('## 1.14', section + '## 1.14')
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Commit runtime migration
+        run: |
+          if git diff --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html CHANGELOG.md
+          git commit -m "release: 1.15"
+          git push
