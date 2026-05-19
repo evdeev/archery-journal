@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'archery-journal-v6-update-overlay';
+const CACHE_VERSION = 'archery-journal-v7-persist-data';
 const APP_SHELL = [
   './',
   './index.html',
@@ -37,6 +37,10 @@ const APP_UPDATE_SCRIPT = `
 (function(){
   var lastTouchEnd = 0;
   var updateInProgress = false;
+  var STORAGE_KEY = 'archery-journal:data:v1';
+  var SAVE_DEBOUNCE_MS = 250;
+  var saveTimer = null;
+  var restoredOnce = false;
 
   document.addEventListener('touchend', function(event) {
     var now = Date.now();
@@ -51,6 +55,74 @@ const APP_UPDATE_SCRIPT = `
   document.addEventListener('dblclick', function(event) {
     event.preventDefault();
   }, { passive: false });
+
+  function currentData(){
+    return {
+      version: 1,
+      savedAt: new Date().toISOString(),
+      sessions: Array.isArray(window.sessions) ? window.sessions : [],
+      currentSessionId: window.currentSessionId || null,
+      equipment: window.equipment || null
+    };
+  }
+
+  function saveAppDataNow(){
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(currentData()));
+    } catch (error) {
+      console.warn('Unable to save Archery Journal data', error);
+    }
+  }
+
+  function saveAppDataSoon(){
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveAppDataNow, SAVE_DEBOUNCE_MS);
+  }
+
+  function restoreAppData(){
+    if (restoredOnce) return;
+    restoredOnce = true;
+
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+
+      var data = JSON.parse(raw);
+      if (!data || !Array.isArray(data.sessions)) return;
+
+      window.sessions = data.sessions;
+      window.currentSessionId = data.currentSessionId || (window.sessions[0] && window.sessions[0].id) || null;
+      window.session = window.sessions.find(function(item){ return item.id === window.currentSessionId; }) || window.sessions[0] || null;
+      window.seed = window.session ? window.session.seed : [];
+
+      if (data.equipment && window.equipment) {
+        Object.assign(window.equipment, data.equipment);
+      }
+
+      if (typeof window.renderHistory === 'function') window.renderHistory();
+      if (typeof window.renderStats === 'function') window.renderStats();
+      if (typeof window.renderEquipment === 'function') window.renderEquipment();
+      if (typeof window.render === 'function' && window.session) window.render();
+    } catch (error) {
+      console.warn('Unable to restore Archery Journal data', error);
+    }
+  }
+
+  function installPersistence(){
+    restoreAppData();
+    saveAppDataSoon();
+
+    ['click','input','change','focusout'].forEach(function(eventName){
+      document.addEventListener(eventName, saveAppDataSoon, true);
+    });
+
+    document.addEventListener('visibilitychange', function(){
+      if (document.visibilityState === 'hidden') saveAppDataNow();
+    });
+
+    window.addEventListener('pagehide', saveAppDataNow);
+    setInterval(saveAppDataNow, 5000);
+  }
 
   function showUpdateOverlay(){
     if (document.getElementById('appUpdateOverlay')) return;
@@ -69,6 +141,8 @@ const APP_UPDATE_SCRIPT = `
     if (updateInProgress) return;
     updateInProgress = true;
 
+    saveAppDataNow();
+
     var button = document.getElementById('updateAppButton');
     if (button) {
       button.disabled = true;
@@ -80,7 +154,10 @@ const APP_UPDATE_SCRIPT = `
     try {
       if ('caches' in window) {
         var keys = await caches.keys();
-        await Promise.all(keys.map(function(key){ return caches.delete(key); }));
+        await Promise.all(keys
+          .filter(function(key){ return key.indexOf('archery-journal-') === 0; })
+          .map(function(key){ return caches.delete(key); })
+        );
       }
 
       if ('serviceWorker' in navigator) {
@@ -118,14 +195,22 @@ const APP_UPDATE_SCRIPT = `
     resetButton.parentElement.insertBefore(button, resetButton);
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', addUpdateButton);
-  } else {
+  function boot(){
+    installPersistence();
     addUpdateButton();
   }
 
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+
   document.addEventListener('click', function(){
-    setTimeout(addUpdateButton, 0);
+    setTimeout(function(){
+      addUpdateButton();
+      saveAppDataSoon();
+    }, 0);
   }, true);
 })();
 </script>`;
@@ -142,7 +227,7 @@ function patchHtml(html) {
     patched = patched.replace('</style>', `\n    /* iOS safe area hotfix */\n${SAFE_AREA_CSS}\n</style>`);
   }
 
-  if (!patched.includes('updateAppButton')) {
+  if (!patched.includes('archery-journal:data:v1')) {
     patched = patched.replace('</body>', `${APP_UPDATE_SCRIPT}\n</body>`);
   }
 
