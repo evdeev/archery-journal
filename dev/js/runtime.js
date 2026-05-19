@@ -1,10 +1,11 @@
 /* Archery Journal v2 runtime helpers. */
-const APP_VERSION = '2.0-dev.5';
+const APP_VERSION = '2.0-dev.7';
 const STORAGE_KEY = 'archery-journal:data:v3';
 
 let archerySaveTimer = null;
 let archeryDataApplied = false;
 let archeryLastTouchEnd = 0;
+let archeryUiTimer = null;
 
 function archeryLoadScriptOnce(id, src) {
   if (document.getElementById(id)) return;
@@ -80,6 +81,85 @@ function archeryApplyStoredData() {
   }
 }
 
+function archeryShowUpdateOverlay() {
+  if (document.getElementById('appUpdateOverlay')) return;
+  const overlay = document.createElement('div');
+  overlay.className = 'app-update-overlay';
+  overlay.id = 'appUpdateOverlay';
+  overlay.setAttribute('role', 'status');
+  overlay.setAttribute('aria-live', 'polite');
+  overlay.innerHTML = '<div class="app-update-card"><div class="app-update-spinner"></div><div class="app-update-title">Обновляем приложение</div><div class="app-update-subtitle">Загружаем новую версию и очищаем кэш…</div></div>';
+  document.body.appendChild(overlay);
+}
+
+async function archeryUpdateApp(event) {
+  if (event) event.preventDefault();
+  archerySaveNow();
+  sessionStorage.setItem('archery-journal:return-settings', '1');
+
+  const button = document.getElementById('updateAppButton');
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Обновление…';
+  }
+
+  archeryShowUpdateOverlay();
+
+  try {
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.filter(key => key.indexOf('archery-journal') === 0).map(key => caches.delete(key)));
+    }
+    if ('serviceWorker' in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map(registration => registration.update()));
+    }
+  } catch (error) {
+    console.warn('App update cleanup failed', error);
+  }
+
+  setTimeout(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('appUpdate', Date.now().toString());
+    url.searchParams.set('tab', 'settings');
+    window.location.replace(url.toString());
+  }, 350);
+}
+
+function archeryRenderDevSettingsControls() {
+  const rootSettings = document.getElementById('rootSettingsScreen');
+  const settingsRoot = rootSettings ? rootSettings.querySelector('.root-app') : null;
+  const resetButton = document.getElementById('resetAppButton');
+  if (!settingsRoot || !resetButton || !resetButton.parentElement) return;
+
+  let button = document.getElementById('updateAppButton');
+  if (!button) {
+    button = document.createElement('button');
+    button.className = 'equipment-delete-row';
+    button.id = 'updateAppButton';
+    button.type = 'button';
+    button.style.color = 'var(--blue)';
+    resetButton.parentElement.insertBefore(button, resetButton);
+  }
+  button.disabled = false;
+  button.textContent = 'Обновить приложение';
+  button.onclick = archeryUpdateApp;
+
+  let footer = document.getElementById('settingsVersionFooter');
+  if (!footer) {
+    footer = document.createElement('div');
+    footer.className = 'settings-version-footer';
+    footer.id = 'settingsVersionFooter';
+    settingsRoot.appendChild(footer);
+  }
+  footer.innerHTML = `<div class="settings-version-value">Версия ${APP_VERSION}</div><div class="settings-version-copy">DEV · © 2026 Boris Evdeev</div>`;
+}
+
+function archeryRenderDevSettingsSoon() {
+  clearTimeout(archeryUiTimer);
+  archeryUiTimer = setTimeout(archeryRenderDevSettingsControls, 0);
+}
+
 function archeryRestoreTargetTab() {
   const url = new URL(window.location.href);
   const shouldOpenSettings = sessionStorage.getItem('archery-journal:return-settings') === '1' || url.searchParams.get('tab') === 'settings';
@@ -93,6 +173,7 @@ function archeryRestoreTargetTab() {
 function archeryRuntimeBoot() {
   archeryLoadRuntimeModules();
   archeryApplyStoredData();
+  archeryRenderDevSettingsControls();
   archeryRestoreTargetTab();
   archerySaveSoon();
 }
@@ -110,7 +191,10 @@ if (document.readyState === 'loading') document.addEventListener('DOMContentLoad
 else archeryRuntimeBoot();
 
 ['click', 'input', 'change', 'focusout'].forEach(eventName => {
-  document.addEventListener(eventName, () => setTimeout(archerySaveSoon, 0), true);
+  document.addEventListener(eventName, () => {
+    setTimeout(archerySaveSoon, 0);
+    archeryRenderDevSettingsSoon();
+  }, true);
 });
 
 document.addEventListener('visibilitychange', () => {
@@ -119,3 +203,4 @@ document.addEventListener('visibilitychange', () => {
 
 window.addEventListener('pagehide', archerySaveNow);
 setInterval(archerySaveNow, 5000);
+setInterval(archeryRenderDevSettingsControls, 1500);
