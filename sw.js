@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'archery-journal-v4-app-update-button';
+const CACHE_VERSION = 'archery-journal-v5-update-without-unregister';
 const APP_SHELL = [
   './',
   './index.html',
@@ -50,8 +50,11 @@ const APP_UPDATE_SCRIPT = `
       }
 
       if ('serviceWorker' in navigator) {
-        var registrations = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(registrations.map(function(registration){ return registration.unregister(); }));
+        var registration = await navigator.serviceWorker.getRegistration();
+        if (registration) {
+          await registration.update();
+          if (registration.waiting) registration.waiting.postMessage({type:'SKIP_WAITING'});
+        }
       }
     } catch (error) {
       console.warn('App update cleanup failed', error);
@@ -122,6 +125,12 @@ async function htmlResponse(response) {
   });
 }
 
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
@@ -147,7 +156,7 @@ self.addEventListener('fetch', (event) => {
     (event.request.headers.get('accept') || '').includes('text/html');
 
   event.respondWith(
-    fetch(event.request)
+    fetch(event.request, { cache: 'no-store' })
       .then(async (response) => {
         if (acceptsHtml) {
           const patched = await htmlResponse(response.clone());
