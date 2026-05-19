@@ -1,10 +1,23 @@
 /* Archery Journal v2 runtime helpers. */
-const APP_VERSION = '2.0-dev.2';
+const APP_VERSION = '2.0-dev.3';
 const STORAGE_KEY = 'archery-journal:data:v3';
 
 let archerySaveTimer = null;
 let archeryDataApplied = false;
 let archeryLastTouchEnd = 0;
+
+function archeryLoadScriptOnce(id, src) {
+  if (document.getElementById(id)) return;
+  const script = document.createElement('script');
+  script.id = id;
+  script.src = src;
+  script.defer = true;
+  document.body.appendChild(script);
+}
+
+function archeryLoadStorageModule() {
+  archeryLoadScriptOnce('archeryStorageModule', './js/storage.js');
+}
 
 function archeryGetSessions() {
   try { return Array.isArray(sessions) ? sessions : []; } catch (_) { return []; }
@@ -66,24 +79,8 @@ function archeryApplyStoredData() {
 }
 
 function archeryInjectRuntimeCss() {
-  if (document.getElementById('archeryRuntimeStyles')) return;
-
-  const style = document.createElement('style');
-  style.id = 'archeryRuntimeStyles';
-  style.textContent = `
-    .settings-version-footer{padding:36px 24px calc(28px + env(safe-area-inset-bottom,0px));text-align:center;color:#8e8e93;}
-    .settings-version-value{font-size:17px;line-height:22px;margin-bottom:10px;}
-    .settings-version-copy{font-size:13px;line-height:18px;}
-    .app-update-overlay{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:rgba(242,242,247,.72);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);padding:24px;}
-    [data-theme="dark"] .app-update-overlay{background:rgba(0,0,0,.62);}
-    .app-update-card{width:min(272px,100%);background:var(--card);border-radius:22px;box-shadow:0 18px 55px rgba(0,0,0,.18);padding:24px 20px 20px;text-align:center;color:var(--text);}
-    .app-update-spinner{width:34px;height:34px;margin:0 auto 16px;border-radius:50%;border:3px solid rgba(142,142,147,.22);border-top-color:var(--blue);animation:appUpdateSpin .8s linear infinite;}
-    .app-update-title{font-size:17px;font-weight:700;line-height:22px;margin-bottom:5px;}
-    .app-update-subtitle{font-size:14px;line-height:19px;color:var(--muted);}
-    #updateAppButton[disabled]{opacity:.55;}
-    @keyframes appUpdateSpin{to{transform:rotate(360deg)}}
-  `;
-  document.head.appendChild(style);
+  // Kept for backward compatibility during v2 migration.
+  // Runtime styles now live in css/runtime.css.
 }
 
 function archeryAddVersionFooter() {
@@ -178,6 +175,7 @@ function archeryRestoreTargetTab() {
 }
 
 function archeryRuntimeBoot() {
+  archeryLoadStorageModule();
   archeryInjectRuntimeCss();
   archeryApplyStoredData();
   archeryAddUpdateButton();
