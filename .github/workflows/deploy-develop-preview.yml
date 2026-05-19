@@ -1,0 +1,75 @@
+name: Deploy Develop Preview
+
+on:
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  deploy-preview:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout develop
+        uses: actions/checkout@v4
+        with:
+          ref: develop
+
+      - name: Prepare preview build
+        run: |
+          mkdir -p preview
+          rsync -av --exclude '.git' --exclude '.github' ./ ./preview/
+
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          index = Path('preview/index.html')
+          if index.exists():
+            html = index.read_text(encoding='utf-8')
+
+            html = html.replace(
+              '<title>Журнал лучника</title>',
+              '<title>Журнал лучника DEV</title>'
+            )
+
+            html = html.replace(
+              'Журнал лучника',
+              'Журнал лучника DEV',
+              1
+            )
+
+            html = re.sub(
+              r'<meta name="apple-mobile-web-app-title" content="[^"]+" />',
+              '<meta name="apple-mobile-web-app-title" content="Archery DEV" />',
+              html
+            )
+
+            index.write_text(html, encoding='utf-8')
+
+          manifest = Path('preview/manifest.webmanifest')
+          if manifest.exists():
+            text = manifest.read_text(encoding='utf-8')
+            text = text.replace('Журнал лучника', 'Журнал лучника DEV')
+            text = text.replace('archery-journal', 'archery-journal-dev')
+            manifest.write_text(text, encoding='utf-8')
+
+          sw = Path('preview/sw.js')
+          if sw.exists():
+            text = sw.read_text(encoding='utf-8')
+            text = text.replace('archery-journal-', 'archery-journal-dev-')
+            sw.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Deploy preview to gh-pages/dev
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          destination_dir: dev
+          publish_dir: ./preview
+          keep_files: true
