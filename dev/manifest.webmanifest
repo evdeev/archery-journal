@@ -1,19 +1,36 @@
 {
   "name": "Журнал лучника DEV",
-  "short_name": "Лучник",
+  "short_name": "Лучник DEV",
   "description": "PWA-журнал для учета лучных тренировок, сессий, статистики и экипировки.",
-  "id": "/archery-journal-dev/",
-  "start_url": "/archery-journal-dev/",
-  "scope": "/archery-journal-dev/",
+  "id": "/archery-journal/dev/",
+  "start_url": "/archery-journal/dev/?devPwa=1",
+  "scope": "/archery-journal/dev/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#f2f2f7",
   "theme_color": "#f2f2f7",
   "lang": "ru",
-  "categories": ["sports", "health", "productivity"],
+  "categories": [
+    "sports",
+    "health",
+    "productivity"
+  ],
   "icons": [
-    { "src": "./icons/icon.svg", "sizes": "any", "type": "image/svg+xml" },
-    { "src": "./icons/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
-    { "src": "./icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    {
+      "src": "./icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "./icons/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
   ]
 }
