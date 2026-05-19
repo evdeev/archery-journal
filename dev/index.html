@@ -1,0 +1,675 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Журнал лучника DEV DEV</title>
+  <meta name="description" content="PWA-журнал для учета лучных тренировок, сессий, статистики и экипировки." />
+  <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+  <meta name="color-scheme" content="light dark" />
+
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" href="./icons/icon-32.png" sizes="32x32" />
+  <link rel="icon" href="./icons/icon-16.png" sizes="16x16" />
+  <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png" />
+
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Archery DEV" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="stylesheet" href="./css/app.css" />
+</head>
+<body class="root-mode history-tab">
+  <section class="screen active" id="historyScreen">
+    <main class="root-app">
+      <div class="large-title">История</div>
+      <div id="historyList"></div>
+    </main>
+  </section>
+
+  <section class="screen" id="statsScreen">
+    <main class="root-app">
+      <div class="large-title">Статистика</div>
+      <div class="stats-segmented" id="statsPeriodSeg" aria-label="Период статистики">
+        <button class="active" data-period="week">Неделя</button>
+        <button data-period="month">Месяц</button>
+        <button data-period="quarter">Квартал</button>
+        <button data-period="year">Год</button>
+      </div>
+      <div id="statsContent"></div>
+    </main>
+  </section>
+
+
+  <section class="screen" id="equipmentScreen">
+    <main class="root-app">
+      <div class="equipment-root-nav"><div class="large-title">Экипировка</div><button class="equipment-add-btn" id="equipmentAddBtn" data-eq-action="addEquipmentCurrent" aria-label="Добавить">+</button></div>
+      <div id="equipmentContent"></div>
+    </main>
+  </section>
+
+  <section class="screen" id="rootSettingsScreen">
+    <main class="root-app">
+      <div class="large-title">Настройки</div>
+      <section class="group">
+        <div class="setting-row"><span class="setting-label">Тёмная тема</span><div class="switch" id="rootThemeSwitch" role="switch" aria-checked="false"></div></div>
+      </section>
+
+      <div class="section-title">Данные</div>
+      <section class="group">
+        <button class="equipment-delete-row" id="importHistoryButton" type="button" style="color:var(--blue)">Импортировать историю</button>
+        <button class="equipment-delete-row" id="exportHistoryButton" type="button" style="color:var(--blue)">Экспортировать историю</button>
+        <button class="equipment-delete-row" id="importEquipmentButton" type="button" style="color:var(--blue)">Импортировать экипировку</button>
+        <button class="equipment-delete-row" id="exportEquipmentButton" type="button" style="color:var(--blue)">Экспортировать экипировку</button>
+        <button class="equipment-delete-row" id="resetAppButton" type="button">Очистить</button>
+      </section>
+
+      <input type="file" id="importHistoryInput" accept=".json" style="display:none">
+      <input type="file" id="importEquipmentInput" accept=".json" style="display:none">
+    </main>
+  </section>
+
+  <section class="screen" id="sessionScreen">
+<main class="app" id="app">
+    <header class="nav">
+      <button class="nav-btn" id="backToHistory" aria-label="Назад">‹</button>
+      <div><div class="title">Сессия</div><div class="subtitle" id="subtitle"></div></div>
+      <button class="nav-btn gear" id="openSettings" aria-label="Настройки"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1A2 2 0 1 1 4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1A2 2 0 1 1 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.6V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1A2 2 0 1 1 19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.1a2 2 0 1 1 0 4H21a1.7 1.7 0 0 0-1.6 1z"></path></svg></button>
+    </header>
+
+    <section class="summary"><div class="total"><span id="totalScore">0</span><span class="denom" id="totalDenom"> / 600</span></div><div class="meta">Средний: <span id="avgScore">0.0</span> · 10: <span id="allTens">0</span> · 9: <span id="allNines">0</span></div></section>
+    <section class="note-card" id="noteCard"><div class="note-row"><div class="note-title">Заметка</div><div class="note-value"><span class="note-preview" id="noteContent"></span><span class="note-chevron">›</span></div></div></section>
+    <div id="rounds"></div>
+  </main>
+
+  
+  </section>
+
+<aside class="assistant" id="assistant" aria-label="Клавиатура результатов"><div class="keyboard">
+    <button class="key yellow" data-v="X">X</button><button class="key yellow" data-v="10">10</button><button class="key yellow" data-v="9">9</button><button class="key red" data-v="8">8</button>
+    <button class="key red" data-v="7">7</button><button class="key blue" data-v="6">6</button><button class="key blue" data-v="5">5</button><button class="key black" data-v="4">4</button>
+    <button class="key black" data-v="3">3</button><button class="key white" data-v="2">2</button><button class="key white" data-v="1">1</button><button class="key white" data-v="M">M</button>
+    <button class="key done" data-v="done">Готово</button></div></aside>
+
+  
+
+  <nav class="tabbar" aria-label="Основное меню">
+    <div class="tabs">
+      <button class="tab active" data-tab="history"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 4v5h5"></path><path d="M12 7v6l4 2"></path></svg><span>История</span></button>
+      <button class="tab" data-tab="stats"><svg viewBox="0 0 24 24"><path d="M4 19V5"></path><path d="M4 19h16"></path><path d="M8 16v-5"></path><path d="M12 16V8"></path><path d="M16 16v-3"></path></svg><span>Статистика</span></button>
+      <button class="tab" data-tab="equipment"><svg viewBox="0 0 24 24"><path d="M10 6V5a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v1"></path><path d="M5 7h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z"></path><path d="M3 12h18"></path><path d="M12 11v2"></path></svg><span>Экипировка</span></button>
+      <button class="tab" data-tab="settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1A2 2 0 1 1 4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1A2 2 0 1 1 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.6V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1A2 2 0 1 1 19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.1a2 2 0 1 1 0 4H21a1.7 1.7 0 0 0-1.6 1z"></path></svg><span>Настройки</span></button>
+    </div>
+  </nav>
+
+  <button class="fab" id="createFab" aria-label="Создать сессию">+</button>
+
+
+<section class="equipment-screen" id="equipmentDetailScreen" aria-label="Комплект экипировки">
+  <div class="settings-nav"><button class="nav-btn" id="closeEquipmentDetail">‹</button><div class="title" id="equipmentDetailNavTitle">Комплект</div><button class="nav-btn" id="equipmentEditBtn" style="font-size:17px;width:auto;padding:0 4px">Править</button></div>
+  <div class="equipment-content" id="equipmentDetailContent"></div>
+</section>
+
+<section class="settings-screen" id="settingsScreen" aria-label="Настройки тренировки">
+    <div class="settings-nav"><button class="nav-btn" id="closeSettings">‹</button><div class="title">Настройки</div><button class="nav-btn" id="saveSettings" style="font-size:17px;width:auto;padding:0 4px">Готово</button></div>
+    <div class="settings-content">
+      <div class="section-title">Тренировка</div>
+      <section class="group">
+        <label class="setting-row"><span class="setting-label">Дата</span><input class="date-input" id="dateInput" type="date"></label>
+        <label class="setting-row"><span class="setting-label">Место</span><input class="text-input" id="placeInput" type="text" placeholder="Не указано"></label>
+        <div class="setting-row"><span class="setting-label">Дистанция</span><div class="segmented" id="distanceSeg"><button data-value="10">10 м</button><button data-value="18">18 м</button></div></div>
+        <div class="setting-row with-helper"><span class="setting-label">Выстрелы</span><div class="segmented" id="shotsSeg"><button data-value="30">30</button><button data-value="60">60</button></div><div class="setting-helper" id="shotsWarning" style="display:none"></div></div>
+        <div class="setting-row"><span class="setting-label">Соревнование</span><div class="switch" id="competitionSwitch" role="switch" aria-checked="false"></div></div>
+        <div class="setting-row"><span class="setting-label">Лук</span><select class="text-input" id="sessionBowSelect"></select></div>
+        <div class="setting-row"><span class="setting-label">Стрелы</span><select class="text-input" id="sessionArrowSelect"></select></div>
+      </section>
+    </div>
+  </section>
+
+
+  <section class="create-screen" id="createScreen" aria-label="Создание сессии">
+    <div class="settings-nav"><button class="nav-btn" id="closeCreate">‹</button><div class="title">Новая сессия</div><button class="nav-btn" id="createDoneTop" style="font-size:17px;width:auto;padding:0 4px">Создать</button></div>
+    <div class="settings-content">
+      <div class="section-title">Параметры</div>
+      <section class="group">
+        <label class="setting-row"><span class="setting-label">Дата</span><input class="date-input" id="createDateInput" type="date"></label>
+        <div class="setting-row"><span class="setting-label">Дистанция</span><div class="segmented" id="createDistanceSeg"><button data-value="10">10 м</button><button data-value="18">18 м</button></div></div>
+        <div class="setting-row"><span class="setting-label">Выстрелы</span><div class="segmented" id="createShotsSeg"><button data-value="30">30</button><button data-value="60">60</button></div></div>
+        <div class="setting-row"><span class="setting-label">Соревнование</span><div class="switch" id="createCompetitionSwitch" role="switch" aria-checked="false"></div></div>
+        <div class="setting-row"><span class="setting-label">Лук</span><select class="text-input" id="createBowSelect"></select></div>
+        <div class="setting-row"><span class="setting-label">Стрелы</span><select class="text-input" id="createArrowSelect"></select></div>
+        <label class="setting-row"><span class="setting-label">Место</span><input class="text-input" id="createPlaceInput" type="text" placeholder="Не указано"></label>
+      </section>
+      <button class="primary-btn" id="createSessionBtn">Создать</button>
+    </div>
+  </section>
+
+
+  <section class="note-screen" id="noteScreen" aria-label="Заметка к сессии">
+    <div class="settings-nav"><button class="nav-btn" id="closeNote">‹</button><div class="title">Заметка</div><button class="nav-btn" id="saveNote" style="font-size:17px;width:auto;padding:0 4px">Готово</button></div>
+    <div class="note-editor">
+      <textarea class="note-textarea" id="noteInput" placeholder="Введите заметку"></textarea>
+    </div>
+  </section>
+
+
+  <section class="note-screen" id="seriesCommentScreen" aria-label="Комментарий к серии">
+    <div class="settings-nav"><button class="nav-btn" id="closeSeriesComment">‹</button><div class="title" id="seriesCommentTitle">Комментарий</div><button class="nav-btn" id="saveSeriesComment" style="font-size:17px;width:auto;padding:0 4px">Готово</button></div>
+    <div class="note-editor">
+      <textarea class="note-textarea" id="seriesCommentInput" placeholder="Добавить комментарий к серии"></textarea>
+    </div>
+  </section>
+
+<script>
+let sessions=[
+  {id:'s3',date:'2026-05-05',place:'',distance:18,shots:60,competition:false,bowId:'bow-bumblebee',arrowSetId:'arr-winning-bees',note:'Сегодня лучше получалась вторая половина тренировки. Нужно проверить стойку.',comments:{1:'Вторая стрела ушла вправо — поздний выпуск.'},seed:[[9,8,7],[7,8,8],[8,9,6],[9,7,7],['X',9,8],[8,9,9],[7,8,9],[9,9,8],[8,10,7],[9,8,8],[8,8,9],['X',9,9],[7,9,8],[8,8,8],[9,9,9],[10,8,9],[null,null,null],[null,null,null],[null,null,null],[null,null,null]]},
+  {id:'s2',date:'2026-05-03',place:'Зал',distance:18,shots:30,competition:false,bowId:'bow-bumblebee',arrowSetId:'arr-winning-bees',seed:[[9,9,8],[8,8,9],[10,9,8],[7,9,9],[8,10,9],[9,8,8],[9,9,9],[10,8,9],[8,9,8],[null,null,null]]},
+  {id:'s1',date:'2026-04-28',place:'',distance:10,shots:30,competition:true,bowId:'bow-bumblebee',arrowSetId:'arr-winning-bees',seed:[[10,9,9],[9,8,9],['X',10,9],[8,8,9],[9,9,8],[10,9,9],[8,9,10],[9,8,8],[10,9,8],[9,9,9]]}
+];
+let currentSessionId=sessions[0].id;
+let session=sessions[0];
+let seed=session.seed;
+let keyboardVisible=false; let active=null;
+let createDraft={distance:18,shots:60,competition:false,place:''};
+
+const scoreVal=v=>v==='M'||v==null?0:(v==='X'?10:Number(v)); const isTen=v=>v==='X'||v===10; const isNine=v=>v===9;
+function maxEnds(){return session.shots/3}
+function findFirstEmpty(){for(let end=0;end<maxEnds();end++){const shot=seed[end]?.findIndex(v=>v===null);if(shot!==-1)return{end,shot}}return null}
+function targetEndForEdit(requestedEnd){
+  const requestedDone=seed[requestedEnd]?.every(v=>v!==null);
+  if(requestedDone) return requestedEnd;
+  const firstEmpty=findFirstEmpty();
+  return firstEmpty ? firstEmpty.end : requestedEnd;
+}
+function firstEmptyShotInEnd(end){
+  const firstEmpty=seed[end].findIndex(v=>v===null);
+  return firstEmpty===-1 ? 0 : firstEmpty;
+}
+function targetShotForEnd(end, requestedShot){
+  const firstEmpty=seed[end].findIndex(v=>v===null);
+  if(firstEmpty===-1) return requestedShot;
+  return seed[end][requestedShot]!==null ? requestedShot : firstEmpty;
+}
+function showKeyboard(){keyboardVisible=true;assistant.classList.remove('hidden')}
+function hideKeyboard(){keyboardVisible=false;active=null;assistant.classList.add('hidden');render()}
+function activate(end,shot){active={end,shot};showKeyboard();render()}
+function ensureSeed(){const ends=maxEnds(); while(seed.length<ends) seed.push([null,null,null]); if(seed.length>ends) seed=seed.slice(0,ends); session.seed=seed}
+function shotColor(s){return s==='X'||s===10||s===9?'yellow':s===8||s===7?'red':s===6||s===5?'blue':s===4||s===3?'black':s===2||s===1||s==='M'?'white':''}
+function escapeAttr(value){
+  return String(value||'')
+    .replace(/&/g,'&amp;')
+    .replace(/'/g,'&#39;')
+    .replace(/"/g,'&quot;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;');
+}
+function seriesActionsForEnd(endIndex){
+  session.comments=session.comments||{};
+  const text=(session.comments[endIndex]||'').trim();
+  const isActive=active&&endIndex===active.end;
+  const done=seed[endIndex]?.every(v=>v!==null);
+  let html='';
+  if(text||isActive){
+    html+=`<div class="series-comment"><textarea class="series-comment-input" data-comment-input-end="${endIndex}" placeholder="Добавить заметку" rows="1">${escapeAttr(text)}</textarea></div>`;
+  }
+  if(isActive&&done&&endIndex===lastFilledEndIndex()){
+    html+=`<div class="series-clear" data-clear-end="${endIndex}">Очистить серию</div>`;
+  }
+  return html;
+}
+function hasVisibleComment(endIndex){
+  session.comments=session.comments||{};
+  return !!((session.comments[endIndex]||'').trim()) || !!(active&&endIndex===active.end);
+}
+function row(endIndex){const shots=seed[endIndex]; const sum=shots.reduce((a,b)=>a+scoreVal(b),0); const done=shots.every(v=>v!==null); const hasComment=hasVisibleComment(endIndex)||((active&&endIndex===active.end)&&done); return `<div class="row ${active&&endIndex===active.end?'active':''} ${hasComment?'has-comment':''}" data-end="${endIndex}"><div class="row-label">${endIndex+1}</div><div class="arrows">${shots.map((s,i)=>`<button class="shot ${shotColor(s)} ${s==null?'empty':''} ${active&&active.shot!==null&&endIndex===active.end&&i===active.shot?'active':''}" data-end="${endIndex}" data-shot="${i}">${s??'—'}</button>`).join('')}</div><div class="score ${done?'done':''}">${sum}</div></div>${seriesActionsForEnd(endIndex)}`}
+function calc(from,to){let score=0,arrows=0,tens=0,nines=0;for(let i=from;i<to;i++)seed[i].forEach(v=>{score+=scoreVal(v);if(v!==null)arrows++;if(isTen(v))tens++;if(isNine(v))nines++});return{score,arrows,max:(to-from)*30,avg:arrows?(score/arrows).toFixed(1):'0.0',tens,nines}}
+function sessionTotal(s){const oldSession=session,oldSeed=seed; session=s; seed=s.seed; ensureSeed(); const c=calc(0,maxEnds()); session=oldSession; seed=oldSeed; return c}
+function formatDate(d){return new Date(d+'T12:00:00').toLocaleDateString('ru-RU',{day:'numeric',month:'long',year:'numeric'})}
+function formatShortDate(d){return new Date(d+'T12:00:00').toLocaleDateString('ru-RU',{day:'numeric',month:'long'})}
+
+function primaryBowId(){
+  return (equipment.bowManualSets||[]).find(x=>x.active)?.id || equipment.bowManualSets?.[0]?.id || '';
+}
+function primaryArrowId(){
+  return (equipment.arrowManualSets||[]).find(x=>x.active)?.id || equipment.arrowManualSets?.[0]?.id || '';
+}
+function bowName(id){
+  return (equipment.bowManualSets||[]).find(x=>x.id===id)?.name || '—';
+}
+function arrowName(id){
+  return (equipment.arrowManualSets||[]).find(x=>x.id===id)?.name || '—';
+}
+function fillEquipmentSelects(bowSelectId,arrowSelectId,currentBow,currentArrow){
+  const bowSelect=document.getElementById(bowSelectId);
+  const arrowSelect=document.getElementById(arrowSelectId);
+  if(bowSelect){
+    bowSelect.innerHTML=(equipment.bowManualSets||[]).map(x=>`<option value="${x.id}" ${x.id===currentBow?'selected':''}>${x.name}</option>`).join('');
+  }
+  if(arrowSelect){
+    arrowSelect.innerHTML=(equipment.arrowManualSets||[]).map(x=>`<option value="${x.id}" ${x.id===currentArrow?'selected':''}>${x.name}</option>`).join('');
+  }
+}
+
+function pluralSession(n){
+  const mod10=n%10, mod100=n%100;
+  if(mod10===1 && mod100!==11) return 'сессия';
+  if(mod10>=2 && mod10<=4 && (mod100<12 || mod100>14)) return 'сессии';
+  return 'сессий';
+}
+function filledArrowsCount(s=session){
+  return (s.seed||[]).reduce((count,end)=>count+end.filter(v=>v!==null).length,0);
+}
+function canSetShots(nextShots,s=session){
+  return filledArrowsCount(s)<=nextShots;
+}
+
+function lastFilledEndIndex(){
+  let last=-1;
+  for(let i=0;i<maxEnds();i++){
+    if(seed[i]?.every(v=>v!==null)) last=i;
+    else break;
+  }
+  return last;
+}
+function clearSeries(end){
+  if(end!==lastFilledEndIndex())return;
+  seed[end]=[null,null,null];
+  session.seed=seed;
+  session.comments=session.comments||{};
+  delete session.comments[end];
+  active={end,shot:0};
+  keyboardVisible=true;
+  assistant.classList.remove('hidden');
+  render();
+}
+
+
+function render(){ensureSeed(); const roundsCount=session.shots===60?2:1; let html=''; for(let r=0;r<roundsCount;r++){const from=r*10,to=from+10,c=calc(from,to),ar=active&&(active.end>=from&&active.end<to); html+=`<div class="section-title">Круг ${r+1}</div><section class="group round ${ar?'active-round':''}">${Array.from({length:10},(_,i)=>row(from+i)).join('')}</section><div class="round-result ${ar?'active-round':''}"><span>Итог круга</span><span><b>${c.score} / 300</b> · ср. <b>${c.avg}</b> · 10: <b>${c.tens}</b> · 9: <b>${c.nines}</b></span></div>`} rounds.innerHTML=html; const all=calc(0,maxEnds()); totalScore.textContent=all.score; totalDenom.textContent=` / ${session.shots*10}`; avgScore.textContent=all.avg; allTens.textContent=all.tens; allNines.textContent=all.nines; subtitle.textContent=`${session.distance} м · 40 см · ${session.shots} стрел${session.competition?' · соревнование':''}${session.place?' · '+session.place:''}${session.bowId?' · '+bowName(session.bowId):''}${session.arrowSetId?' · '+arrowName(session.arrowSetId):''}`;
+  const noteEl=document.getElementById('noteContent');
+  if(noteEl)noteEl.textContent=session.note&&session.note.trim()
+    ? session.note.trim().replace(/\s+/g,' ').slice(0,80)
+    : 'Добавить';
+  assistant.classList.toggle('hidden',!keyboardVisible);
+  
+
+
+function importSessionsFromJson(data){
+  if(!Array.isArray(data.sessions))throw new Error('Некорректный формат файла');
+
+  const importedSessions=data.sessions.map(item=>({
+    id:item.id||('s'+Date.now()+Math.random().toString(36).slice(2,6)),
+    date:item.date,
+    place:item.place||'',
+    distance:Number(item.distance||18),
+    shots:Number(item.shots||60),
+    competition:!!item.competition,
+    bowId:item.bowId||'',
+    arrowSetId:item.arrowSetId||'',
+    note:item.note||'',
+    comments:item.comments||{},
+    seed:item.seed||[]
+  }));
+
+  sessions=[...importedSessions,...sessions];
+
+  renderHistory();
+  renderStats();
+
+  alert('Импортировано сессий: '+importedSessions.length);
+}
+
+function importEquipmentFromJson(data){
+  equipment.bowManualSets=Array.isArray(data.bowManualSets)?data.bowManualSets:[];
+  equipment.arrowManualSets=Array.isArray(data.arrowManualSets)?data.arrowManualSets:[];
+
+  renderEquipment();
+
+  alert('Экипировка импортирована');
+}
+
+function readJsonFile(file,onLoad){
+  if(!file)return;
+
+  const reader=new FileReader();
+
+  reader.onload=e=>{
+    try{
+      const data=JSON.parse(e.target.result);
+      onLoad(data);
+    }catch(err){
+      alert('Не удалось импортировать файл');
+      console.error(err);
+    }
+  };
+
+  reader.readAsText(file);
+}
+
+function exportHistory(){
+  const data={sessions:sessions};
+
+  const blob=new Blob(
+    [JSON.stringify(data,null,2)],
+    {type:'application/json'}
+  );
+
+  const url=URL.createObjectURL(blob);
+
+  const a=document.createElement('a');
+  a.href=url;
+  a.download='archery-history-export.json';
+
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+
+function exportEquipment(){
+  const data={
+    bowManualSets:equipment.bowManualSets||[],
+    arrowManualSets:equipment.arrowManualSets||[]
+  };
+
+  const blob=new Blob(
+    [JSON.stringify(data,null,2)],
+    {type:'application/json'}
+  );
+
+  const url=URL.createObjectURL(blob);
+
+  const a=document.createElement('a');
+  a.href=url;
+  a.download='archery-equipment-export.json';
+
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+
+document.getElementById('importHistoryButton')?.addEventListener('click',()=>{
+  document.getElementById('importHistoryInput')?.click();
+});
+
+document.getElementById('importEquipmentButton')?.addEventListener('click',()=>{
+  document.getElementById('importEquipmentInput')?.click();
+});
+
+document.getElementById('importHistoryInput')?.addEventListener('change',e=>{
+  readJsonFile(e.target.files?.[0],importSessionsFromJson);
+  e.target.value='';
+});
+
+document.getElementById('importEquipmentInput')?.addEventListener('change',e=>{
+  readJsonFile(e.target.files?.[0],importEquipmentFromJson);
+  e.target.value='';
+});
+
+document.getElementById('exportHistoryButton')?.addEventListener('click',exportHistory);
+document.getElementById('exportEquipmentButton')?.addEventListener('click',exportEquipment);
+
+function resetAllData(){
+  const confirmed=confirm('Все данные приложения будут удалены без возможности восстановления.\n\nНажмите «ОК», чтобы удалить данные, или «Отмена», чтобы отменить действие.');
+  if(!confirmed)return;
+
+  sessions=[];
+
+  equipment.arrowManualSets=[];
+  equipment.bowManualSets=[];
+
+  currentSessionId=null;
+  session=null;
+  seed=[];
+  active=null;
+  keyboardVisible=false;
+
+  closeEquipmentDetail();
+
+  document.getElementById('equipmentDetailScreen')?.classList.remove('open');
+  document.getElementById('createScreen')?.classList.remove('open');
+  document.getElementById('settingsScreen')?.classList.remove('open');
+
+  showRoot('history');
+  renderHistory();
+  renderStats();
+  renderEquipment();
+}
+
+document.getElementById('resetAppButton')?.addEventListener('click',resetAllData);
+
+
+renderHistory(); renderStats(); renderEquipment(); autosizeAllSeriesComments()}
+function moveNext(){if(!active||active.shot===null)return; if(active.shot<2){active.shot+=1;return} const nextEmpty=findFirstEmpty(); active=nextEmpty??null; if(!active)keyboardVisible=false}
+
+function showRoot(tab='history'){hideKeyboardSilent(); document.body.classList.remove('session-mode','history-tab','stats-tab','equipment-tab','settings-tab'); document.body.classList.add('root-mode',tab+'-tab'); document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); const screenId=tab==='stats'?'statsScreen':tab==='equipment'?'equipmentScreen':tab==='settings'?'rootSettingsScreen':'historyScreen'; document.getElementById(screenId).classList.add('active'); document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===tab)); renderHistory(); renderStats(); renderEquipment(); autosizeAllSeriesComments()}
+function openSession(id){const found=sessions.find(s=>s.id===id); if(!found)return; currentSessionId=id; session=found; seed=session.seed; active=findFirstEmpty(); keyboardVisible=!!active; document.body.classList.add('session-mode'); document.body.classList.remove('root-mode'); document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); sessionScreen.classList.add('active'); render()}
+function hideKeyboardSilent(){keyboardVisible=false;active=null;assistant.classList.add('hidden')}
+
+let editingSeriesCommentEnd=null;
+function openSeriesCommentScreen(end){
+  editingSeriesCommentEnd=end;
+  session.comments=session.comments||{};
+  const screen=document.getElementById('seriesCommentScreen');
+  const input=document.getElementById('seriesCommentInput');
+  const title=document.getElementById('seriesCommentTitle');
+  if(!screen||!input)return;
+  if(title)title.textContent='Серия '+(end+1);
+  input.value=session.comments[end]||'';
+  screen.classList.add('open');
+  hideKeyboardSilent();
+  setTimeout(()=>input.focus(),260);
+}
+function closeSeriesCommentScreen(){
+  const screen=document.getElementById('seriesCommentScreen');
+  if(screen)screen.classList.remove('open');
+  editingSeriesCommentEnd=null;
+}
+function saveSeriesCommentValue(){
+  if(editingSeriesCommentEnd===null)return closeSeriesCommentScreen();
+  session.comments=session.comments||{};
+  const input=document.getElementById('seriesCommentInput');
+  const text=(input?.value||'').trim();
+  if(text)session.comments[editingSeriesCommentEnd]=text;
+  else delete session.comments[editingSeriesCommentEnd];
+  closeSeriesCommentScreen();
+  render();
+}
+function autosizeSeriesCommentInput(input){
+  if(!input)return;
+  input.style.height='auto';
+  input.style.height=input.scrollHeight+'px';
+}
+function autosizeAllSeriesComments(){
+  document.querySelectorAll('.series-comment-input').forEach(autosizeSeriesCommentInput);
+}
+
+
+function formatMonth(d){const text=new Date(d+'T12:00:00').toLocaleDateString('ru-RU',{month:'long',year:'numeric'});return text.charAt(0).toUpperCase()+text.slice(1)}
+function renderHistory(){
+  if(!historyList)return;
+  sessions.sort((a,b)=>b.date.localeCompare(a.date)||b.id.localeCompare(a.id));
+  const groups={};
+  sessions.forEach(s=>{const key=s.date.slice(0,7); if(!groups[key]) groups[key]=[]; groups[key].push(s)});
+  const competitionIcon='<span class="competition-badge" title="Соревнование"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.4 11.1a4.1 4.1 0 1 0 0-8.2 4.1 4.1 0 0 0 0 8.2Z"></path><path d="M14.2 21H2.8a1.8 1.8 0 0 1-1.7-2.3 8.6 8.6 0 0 1 16.8 0 1.8 1.8 0 0 1-1.7 2.3h-2Z"></path><path d="M17.2 10.7a3.4 3.4 0 1 0-.1-6.8 5.6 5.6 0 0 1 .1 6.8Z" opacity=".82"></path><path d="M18.9 20.9h2.3a1.7 1.7 0 0 0 1.6-2.2 7.1 7.1 0 0 0-6.1-5.2 10 10 0 0 1 2.2 7.4Z" opacity=".82"></path></svg></span>';
+  historyList.innerHTML=Object.keys(groups).sort().reverse().map(key=>{
+    const monthSessions=groups[key];
+    let monthScore=0, monthArrows=0;
+    const items=monthSessions.map(s=>{
+      const c=sessionTotal(s);
+      monthScore+=c.score;
+      monthArrows+=c.arrows;
+      return `<div class="history-item" data-session-id="${s.id}">
+        <div>
+          <div class="history-main"><span>${formatShortDate(s.date)} · ${s.distance} м</span>${s.competition?competitionIcon:''}</div>
+          <div class="history-meta"><span>Средний: ${c.avg}</span></div>
+        </div>
+        <div style="display:flex;align-items:center"><div class="history-score">${c.score}<span class="max">/${s.shots*10}</span></div><div class="chevron">›</div></div>
+      </div>`
+    }).join('');
+    const monthAvg=monthArrows?(monthScore/monthArrows).toFixed(1):'0.0';
+    return `<div class="history-month">
+      <div class="month-title">${formatMonth(monthSessions[0].date)}</div>
+      <section class="group">${items}</section>
+      <div class="month-result"><span>Итог месяца</span><span><b>${monthSessions.length}</b> ${pluralSession(monthSessions.length)} · ср. <b>${monthAvg}</b></span></div>
+    </div>`
+  }).join('')
+}
+
+
+let statsPeriod='week';
+function dateDaysAgo(days){const d=new Date();d.setHours(12,0,0,0);d.setDate(d.getDate()-days);return d}
+function sessionsForStats(){
+  const days=statsPeriod==='week'?7:statsPeriod==='month'?31:statsPeriod==='quarter'?92:366;
+  const min=dateDaysAgo(days);
+  return sessions.filter(s=>new Date(s.date+'T12:00:00')>=min).sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
+}
+function sessionStats(s){
+  const oldSession=session, oldSeed=seed; session=s; seed=s.seed; ensureSeed();
+  const total=calc(0,maxEnds());
+  const endSums=s.seed.slice(0,s.shots/3).map(end=>end.reduce((a,b)=>a+scoreVal(b),0));
+  const doneEnds=s.seed.slice(0,s.shots/3).filter(end=>end.every(v=>v!==null));
+  const first=calc(0,Math.min(10,maxEnds()));
+  const second=maxEnds()>10?calc(10,Math.min(20,maxEnds())):{score:0,arrows:0,avg:'0.0',tens:0,nines:0};
+  session=oldSession; seed=oldSeed;
+  return {total,endSums,doneEnds,first,second,avg:+total.avg};
+}
+function movingAverage(values,windowSize=3){return values.map((_,i)=>{const from=Math.max(0,i-windowSize+1);const part=values.slice(from,i+1);return part.reduce((a,b)=>a+b,0)/part.length})}
+function pathFromPoints(points){
+  if(!points.length)return '';
+  if(points.length===1)return `M ${points[0].x} ${points[0].y}`;
+  let d=`M ${points[0].x} ${points[0].y}`;
+  for(let i=1;i<points.length;i++){
+    const p0=points[i-1],p1=points[i];
+    const mx=(p0.x+p1.x)/2;
+    d+=` C ${mx} ${p0.y}, ${mx} ${p1.y}, ${p1.x} ${p1.y}`;
+  }
+  return d;
+}
+function startOfWeek(date){
+  const d=new Date(date); d.setHours(12,0,0,0);
+  const day=d.getDay()||7;
+  d.setDate(d.getDate()-day+1);
+  return d;
+}
+function monthKey(date){return date.toISOString().slice(0,7)}
+function shortMonthName(date){return date.toLocaleDateString('ru-RU',{month:'short'}).replace('.', '')}
+function formatAxisDate(dateString, includeYear=false){
+  const d=new Date(dateString+'T12:00:00');
+  return includeYear
+    ? d.toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit',year:'2-digit'})
+    : d.toLocaleDateString('ru-RU',{day:'numeric',month:'short'}).replace('.', '');
+}
+function formatWeekRangeLabel(startDate){
+  const end=new Date(startDate); end.setDate(end.getDate()+6);
+  const sameMonth=startDate.getMonth()===end.getMonth();
+  if(sameMonth)return `${startDate.getDate()}–${end.getDate()} ${shortMonthName(end)}`;
+  return `${startDate.getDate()} ${shortMonthName(startDate)}–${end.getDate()} ${shortMonthName(end)}`;
+}
+function buildStatsPoints(items){
+  if(statsPeriod==='quarter'){
+    const groups={};
+    items.forEach(it=>{
+      const d=startOfWeek(new Date(it.session.date+'T12:00:00'));
+      const key=d.toISOString().slice(0,10);
+      if(!groups[key])groups[key]={label:formatWeekRangeLabel(d),score:0,arrows:0,count:0,items:[]};
+      groups[key].score+=it.stats.total.score;
+      groups[key].arrows+=it.stats.total.arrows;
+      groups[key].count+=1;
+      groups[key].items.push(it);
+    });
+    return Object.keys(groups).sort().map(key=>({key,label:groups[key].label,avg:groups[key].arrows?groups[key].score/groups[key].arrows:0,count:groups[key].count,items:groups[key].items,kind:'week'}));
+  }
+  if(statsPeriod==='year'){
+    const groups={};
+    items.forEach(it=>{
+      const d=new Date(it.session.date+'T12:00:00');
+      const key=monthKey(d);
+      if(!groups[key])groups[key]={label:shortMonthName(d),score:0,arrows:0,count:0,items:[]};
+      groups[key].score+=it.stats.total.score;
+      groups[key].arrows+=it.stats.total.arrows;
+      groups[key].count+=1;
+      groups[key].items.push(it);
+    });
+    return Object.keys(groups).sort().map(key=>({key,label:groups[key].label,avg:groups[key].arrows?groups[key].score/groups[key].arrows:0,count:groups[key].count,items:groups[key].items,kind:'month'}));
+  }
+  const hasSeveralYears=items.some((it,_,arr)=>it.session.date.slice(0,4)!==arr[0].session.date.slice(0,4));
+  return items.map(it=>({key:it.session.id,label:formatAxisDate(it.session.date,hasSeveralYears),avg:it.stats.avg,count:1,items:[it],kind:'session'}));
+}
+function labelEvery(points){
+  if(statsPeriod==='year')return 1;
+  if(statsPeriod==='quarter')return points.length>14?2:1;
+  if(points.length<=12)return 1;
+  if(points.length<=24)return 2;
+  return Math.ceil(points.length/12);
+}
+function renderAverageChart(items){
+  const pointsData=buildStatsPoints(items);
+  const values=pointsData.map(i=>i.avg);
+  const w=398,h=226,padL=30,padR=12,padT=16,padB=48;
+  const min=Math.max(0,Math.floor(Math.min(...values)-.5));
+  const max=Math.min(10,Math.ceil(Math.max(...values)+.5));
+  const span=Math.max(1,max-min);
+  const innerW=w-padL-padR,innerH=h-padT-padB;
+  const barGap=pointsData.length>20?3:6;
+  const barW=Math.max(4,(innerW-(pointsData.length-1)*barGap)/Math.max(1,pointsData.length));
+  const y=v=>padT+innerH-((v-min)/span)*innerH;
+  const trend=movingAverage(values,Math.min(5,Math.max(2,pointsData.length))).map((v,i)=>({x:padL+i*(barW+barGap)+barW/2,y:y(v)}));
+  const every=labelEvery(pointsData);
+  const bars=pointsData.map((it,i)=>{
+    const x=padL+i*(barW+barGap), cx=x+barW/2, top=y(it.avg), bh=padT+innerH-top;
+    const showLabel=i%every===0 || i===pointsData.length-1;
+    const valueTitle=it.count>1?`${it.avg.toFixed(1)} · ${it.count} сесс.`:it.avg.toFixed(1);
+    return `<rect x="${x.toFixed(1)}" y="${top.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(2,bh).toFixed(1)}" rx="${Math.min(5,barW/2).toFixed(1)}" fill="var(--blue)" opacity=".72"><title>${valueTitle}</title></rect>${showLabel?`<text x="${cx.toFixed(1)}" y="205" text-anchor="middle">${it.label}</text>`:''}`;
+  }).join('');
+  const grid=[min,(min+max)/2,max].map(v=>`<line x1="${padL}" x2="${w-padR}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="var(--line)" stroke-width="1" opacity=".75"></line><text x="3" y="${(y(v)+4).toFixed(1)}">${v.toFixed(v%1?1:0)}</text>`).join('');
+  const trendCircles=trend.map((p,i)=>pointsData.length>18?'':`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.2" fill="var(--accent)"></circle>`).join('');
+  const valueLabels=pointsData.map((it,i)=>{
+    if(pointsData.length>14)return '';
+    const x=padL+i*(barW+barGap)+barW/2;
+    return `<text x="${x.toFixed(1)}" y="${(y(it.avg)-6).toFixed(1)}" text-anchor="middle">${it.avg.toFixed(1)}</text>`;
+  }).join('');
+  return `<svg class="stats-chart" viewBox="0 0 ${w} ${h}" role="img" aria-label="Средний бал по тренировкам">${grid}${bars}${valueLabels}<path d="${pathFromPoints(trend)}" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linecap="round"></path>${trendCircles}</svg>`;
+}
+function renderStabilitySpark(items){
+  const vals=items.map(it=>{
+    const sums=it.stats.endSums.filter((_,i)=>it.session.seed[i]?.every(v=>v!==null));
+    if(!sums.length)return 0;
+    return Math.max(...sums)-Math.min(...sums);
+  });
+  const max=Math.max(1,...vals);
+  return `<div class="spark-bars">${vals.map(v=>`<div class="spark-bar" style="height:${Math.max(8,(v/max)*74)}px;opacity:${.35+(v/max)*.5}"></div>`).join('')}</div>`;
+}
+function renderStats(){
+  const root=document.getElementById('statsContent'); if(!root)return;
+  document.querySelectorAll('#statsPeriodSeg button').forEach(b=>b.classList.toggle('active',b.dataset.period===statsPeriod));
+  const raw=sessionsForStats();
+  const items=raw.map(s=>({session:s,stats:sessionStats(s)})).filter(i=>i.stats.total.arrows>0);
+  if(!items.length){root.innerHTML=`<section class="group"><div class="stats-empty">За выбранный период пока нет заполненных тренировок.</div></section>`;return}
+  const chartPoints=buildStatsPoints(items);
+  const totalScore=items.reduce((a,i)=>a+i.stats.total.score,0);
+  const totalArrows=items.reduce((a,i)=>a+i.stats.total.arrows,0);
+  const avg=totalArrows?totalScore/totalArrows:0;
+  const firstAvg=chartPoints[0].avg, lastAvg=chartPoints[chartPoints.length-1].avg;
+  const delta=lastAvg-firstAvg;
+  const best=items.reduce((a,i)=>i.stats.avg>a.stats.avg?i:a,items[0]);
+  const tens=items.reduce((a,i)=>a+i.stats.total.tens,0);
+  const nines=items.reduce((a,i)=>a+i.stats.total.nines,0);
+  const stabilityVals=items.map(it=>{const sums=it.stats.endSums.filter((_,i)=>it.session.seed[i]?.every(v=>v!==null));return sums.length?Math.max(...sums)-Math.min(...sums):0});
+  const stabilityAvg=stabilityVals.reduce((a,b)=>a+b,0)/Math.max(1,stabilityVals.length);
+  const sixty=items.filter(i=>i.session.shots===60&&i.stats.second.arrows>0);
+  const firstHalf=sixty.length?sixty.reduce((a,i)=>a+(+i.stats.first.avg),0)/sixty.length:null;
+  const secondHalf=sixty.length?sixty.reduce((a,i)=>a+(+i.stats.second.avg),0)/sixty.length:null;
+  const comps=items.filter(i=>i.session.competition), trains=items.filter(i=>!i.session.competition);
+  const avgOf=arr=>arr.length?arr.reduce((a,i)=>a+i.stats.total.score,0)/arr.reduce((a,i)=>a+i.stats.total.arrows,0):null;
+  const compAvg=avgOf(comps), trainAvg=avgOf(trains);
+  const chartMode=statsPeriod==='quarter'?'по неделям':statsPeriod==='year'?'по месяцам':'по сессиям';
+  root.innerHTML=`
+    <section class="stats-card">
+      <div class="stats-card-title">Средний результат · ${chartMode}</div>
+      <div class="stats-hero"><div><div class="stats-hero-value">${avg.toFixed(1)}</div><div class="mini-note">${items.length} ${pluralSession(items.length)} · ${totalArrows} стрел</div></div><div class="stats-hero-sub
