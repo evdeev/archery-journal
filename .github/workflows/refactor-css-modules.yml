@@ -114,3 +114,5 @@ jobs:
           git add css/app.css css/base.css css/session.css css/history.css css/stats.css css/equipment.css REFACTORING.md
           git commit -m "refactor: split css into modules"
           git push origin develop
+
+# trigger: 2026-05-19 css modules refactor
