@@ -1,0 +1,25 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <title>Журнал лучника — app icon</title>
+  <rect width="1024" height="1024" rx="220" fill="#0F172A"/>
+
+  <!-- outer segmented target ring -->
+  <g stroke="#F8FAFC" stroke-width="76" stroke-linecap="round">
+    <path d="M512 198 A314 314 0 0 1 826 512"/>
+    <path d="M826 512 A314 314 0 0 1 512 826"/>
+    <path d="M512 826 A314 314 0 0 1 198 512"/>
+    <path d="M198 512 A314 314 0 0 1 512 198"/>
+  </g>
+
+  <!-- Ж / impact mark -->
+  <g stroke="#F8FAFC" stroke-width="78" stroke-linecap="round">
+    <path d="M512 328 L512 452"/>
+    <path d="M512 572 L512 696"/>
+    <path d="M353 420 L456 483"/>
+    <path d="M568 541 L671 604"/>
+    <path d="M671 420 L568 483"/>
+    <path d="M456 541 L353 604"/>
+  </g>
+
+  <!-- hit center -->
+  <circle cx="512" cy="512" r="63" fill="#EF2D2D"/>
+</svg>
