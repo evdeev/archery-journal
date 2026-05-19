@@ -1,5 +1,5 @@
-const CACHE_VERSION = 'archery-journal-v14-delete-session';
-const APP_VERSION = '1.13';
+const CACHE_VERSION = 'archery-journal-v15-force-runtime-replace';
+const APP_VERSION = '1.14';
 const APP_SHELL = [
   './',
   './index.html',
@@ -312,8 +312,14 @@ const PATCH_SCRIPT = `
 })();
 </script>`;
 
+function removeOldPatchScripts(html) {
+  return html
+    .replace(/<script id="archeryJournalPersistenceBoot">[\s\S]*?<\/script>/g, '')
+    .replace(/<script id="archeryJournalRuntimePatch">[\s\S]*?<\/script>/g, '');
+}
+
 function patchHtml(html) {
-  let patched = html;
+  let patched = removeOldPatchScripts(html);
 
   patched = patched.replace(
     /<meta name="viewport" content="[^"]*"\s*\/?>/,
@@ -324,13 +330,8 @@ function patchHtml(html) {
     patched = patched.replace('</style>', `\n${PATCH_CSS}\n</style>`);
   }
 
-  if (!patched.includes('id="archeryJournalPersistenceBoot"')) {
-    patched = patched.replace('<script>\nlet sessions=', `${PERSISTENCE_BOOT_SCRIPT}\n<script>\nlet sessions=`);
-  }
-
-  if (!patched.includes('id="archeryJournalRuntimePatch"')) {
-    patched = patched.replace('</body>', `${PATCH_SCRIPT}\n</body>`);
-  }
+  patched = patched.replace('<script>\nlet sessions=', `${PERSISTENCE_BOOT_SCRIPT}\n<script>\nlet sessions=`);
+  patched = patched.replace('</body>', `${PATCH_SCRIPT}\n</body>`);
 
   return patched;
 }
