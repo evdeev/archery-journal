@@ -1,6 +1,9 @@
 /* Archery Journal v2 settings screen component. */
-const SETTINGS_BUILD = '2.0-dev.5';
+const SETTINGS_BUILD = '2.0-dev.6';
 const SETTINGS_ENVIRONMENT = 'DEV';
+
+let settingsRenderTimer = null;
+let settingsObserver = null;
 
 function settingsShowUpdateOverlay() {
   if (document.getElementById('appUpdateOverlay')) return;
@@ -91,11 +94,25 @@ function settingsRender() {
   settingsRenderFooter();
 }
 
+function settingsRenderSoon() {
+  clearTimeout(settingsRenderTimer);
+  settingsRenderTimer = setTimeout(settingsRender, 0);
+}
+
+function settingsObserveRoot() {
+  const rootSettings = document.getElementById('rootSettingsScreen');
+  if (!rootSettings || settingsObserver) return;
+
+  settingsObserver = new MutationObserver(settingsRenderSoon);
+  settingsObserver.observe(rootSettings, { childList: true, subtree: true });
+}
+
 function settingsBoot() {
   settingsRender();
+  settingsObserveRoot();
 
   ['click', 'input', 'change', 'focusout'].forEach(eventName => {
-    document.addEventListener(eventName, () => setTimeout(settingsRender, 0), true);
+    document.addEventListener(eventName, settingsRenderSoon, true);
   });
 }
 
