@@ -3,7 +3,7 @@
   "short_name": "Лучник DEV",
   "description": "PWA-журнал для учета лучных тренировок, сессий, статистики и экипировки.",
   "id": "/archery-journal/dev/",
-  "start_url": "/archery-journal/dev/?devPwa=1",
+  "start_url": "/archery-journal/dev/?devPwa=1&build=2.0-dev.4",
   "scope": "/archery-journal/dev/",
   "display": "standalone",
   "orientation": "portrait",

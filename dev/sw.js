@@ -1,5 +1,5 @@
-const CACHE_VERSION = 'archery-journal-dev-v20-dev-3-storage';
-const APP_VERSION = '2.0-dev.3';
+const CACHE_VERSION = 'archery-journal-dev-2.0-dev.4';
+const APP_VERSION = '2.0-dev.4';
 const APP_SHELL = [
   './',
   './index.html',
