@@ -30,15 +30,14 @@ jobs:
           import re
 
           PREVIEW_BASE = '/archery-journal/dev/'
+          BUILD = '2.0-dev.4'
 
           index = Path('preview/index.html')
           if index.exists():
             html = index.read_text(encoding='utf-8')
 
-            html = html.replace(
-              '<title>Журнал лучника</title>',
-              '<title>Журнал лучника DEV</title>'
-            )
+            html = html.replace('<title>Журнал лучника</title>', '<title>Журнал лучника DEV</title>')
+            html = html.replace('<title>Журнал лучника DEV</title>', '<title>Журнал лучника DEV</title>')
 
             html = re.sub(
               r'<meta name="apple-mobile-web-app-title" content="[^"]+" />',
@@ -46,14 +45,33 @@ jobs:
               html
             )
 
-            # Cache-bust manifest and service worker references for iOS Home Screen PWA.
-            html = html.replace(
-              '<link rel="manifest" href="./manifest.webmanifest" />',
-              '<link rel="manifest" href="./manifest.webmanifest?v=dev" />'
+            html = re.sub(
+              r'<link rel="manifest" href="\.\/manifest\.webmanifest(?:\?v=[^"]+)?"\s*\/?>',
+              f'<link rel="manifest" href="./manifest.webmanifest?v={BUILD}" />',
+              html
             )
-            html = html.replace(
-              "navigator.serviceWorker.register('./sw.js')",
-              "navigator.serviceWorker.register('./sw.js?v=dev', { scope: './' })"
+            html = re.sub(
+              r'<link rel="stylesheet" href="\.\/css\/app\.css(?:\?v=[^"]+)?"\s*\/?>',
+              f'<link rel="stylesheet" href="./css/app.css?v={BUILD}" />',
+              html
+            )
+
+            html = re.sub(r'\s*<script src="\.\/js\/storage\.js(?:\?v=[^"]+)?" defer><\/script>', '', html)
+            html = re.sub(
+              r'<script src="\.\/js\/app\.js(?:\?v=[^"]+)?" defer><\/script>',
+              f'<script src="./js/app.js?v={BUILD}" defer></script>\n  <script src="./js/storage.js?v={BUILD}" defer></script>',
+              html
+            )
+            html = re.sub(
+              r'<script src="\.\/js\/runtime\.js(?:\?v=[^"]+)?" defer><\/script>',
+              f'<script src="./js/runtime.js?v={BUILD}" defer></script>',
+              html
+            )
+
+            html = re.sub(
+              r"navigator\.serviceWorker\.register\('\.\/sw\.js(?:\?v=[^']+)?'(?:,\s*\{\s*scope:\s*'\./'\s*\})?\)",
+              f"navigator.serviceWorker.register('./sw.js?v={BUILD}', {{ scope: './' }})",
+              html
             )
 
             index.write_text(html, encoding='utf-8')
@@ -64,7 +82,7 @@ jobs:
             data['name'] = 'Журнал лучника DEV'
             data['short_name'] = 'Лучник DEV'
             data['id'] = PREVIEW_BASE
-            data['start_url'] = PREVIEW_BASE + '?devPwa=1'
+            data['start_url'] = PREVIEW_BASE + f'?devPwa=1&build={BUILD}'
             data['scope'] = PREVIEW_BASE
             manifest.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
 
@@ -72,7 +90,8 @@ jobs:
           if sw.exists():
             text = sw.read_text(encoding='utf-8')
             text = text.replace('archery-journal-', 'archery-journal-dev-')
-            text = text.replace("const APP_VERSION = '1.16';", "const APP_VERSION = 'DEV';")
+            text = re.sub(r"const APP_VERSION = '[^']+';", f"const APP_VERSION = '{BUILD}';", text)
+            text = re.sub(r"const CACHE_VERSION = '[^']+';", f"const CACHE_VERSION = 'archery-journal-dev-{BUILD}';", text)
             sw.write_text(text, encoding='utf-8')
           PY
 
