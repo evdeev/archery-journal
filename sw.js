@@ -1,5 +1,5 @@
-const CACHE_VERSION = 'archery-journal-v11-persist-state';
-const APP_VERSION = '1.10';
+const CACHE_VERSION = 'archery-journal-v12-runtime-patch-fix';
+const APP_VERSION = '1.11';
 const APP_SHELL = [
   './',
   './index.html',
@@ -37,7 +37,7 @@ const PATCH_CSS = `
 `;
 
 const PERSISTENCE_BOOT_SCRIPT = `
-<script>
+<script id="archeryJournalPersistenceBoot">
 (function(){
   var STORAGE_KEY = 'archery-journal:data:v3';
   var OLD_KEYS = ['archery-journal:data:v2','archery-journal:data:v1'];
@@ -53,7 +53,6 @@ const PERSISTENCE_BOOT_SCRIPT = `
   try {
     var data = JSON.parse(raw);
     if (!data || !Array.isArray(data.sessions)) return;
-
     window.__ARCHERY_JOURNAL_SAVED_DATA__ = data;
   } catch (error) {
     console.warn('Unable to preload Archery Journal data', error);
@@ -62,7 +61,7 @@ const PERSISTENCE_BOOT_SCRIPT = `
 </script>`;
 
 const PATCH_SCRIPT = `
-<script>
+<script id="archeryJournalRuntimePatch">
 (function(){
   var lastTouchEnd = 0;
   var updateInProgress = false;
@@ -137,13 +136,15 @@ const PATCH_SCRIPT = `
     var rootSettings = document.getElementById('rootSettingsScreen');
     var settingsRoot = rootSettings ? rootSettings.querySelector('.root-app') : null;
     if (!settingsRoot) return;
-    if (document.getElementById('settingsVersionFooter')) return;
 
-    var footer = document.createElement('div');
-    footer.className = 'settings-version-footer';
-    footer.id = 'settingsVersionFooter';
+    var footer = document.getElementById('settingsVersionFooter');
+    if (!footer) {
+      footer = document.createElement('div');
+      footer.className = 'settings-version-footer';
+      footer.id = 'settingsVersionFooter';
+      settingsRoot.appendChild(footer);
+    }
     footer.innerHTML = '<div class="settings-version-value">Версия ${APP_VERSION}</div><div class="settings-version-copy">© 2026 Boris Evdeev</div>';
-    settingsRoot.appendChild(footer);
   }
 
   function showUpdateOverlay(){
@@ -157,12 +158,18 @@ const PATCH_SCRIPT = `
     document.body.appendChild(overlay);
   }
 
+  function openSettingsTab(){
+    var settingsTab = document.querySelector('.tab[data-tab="settings"]');
+    if (settingsTab) settingsTab.click();
+  }
+
   async function updateApp(event){
     if (event) event.preventDefault();
     if (updateInProgress) return;
     updateInProgress = true;
 
     saveAppDataNow();
+    sessionStorage.setItem('archery-journal:return-settings', '1');
 
     var button = document.getElementById('updateAppButton');
     if (button) {
@@ -195,29 +202,42 @@ const PATCH_SCRIPT = `
     setTimeout(function(){
       var url = new URL(window.location.href);
       url.searchParams.set('appUpdate', Date.now().toString());
+      url.searchParams.set('tab', 'settings');
       window.location.replace(url.toString());
     }, 350);
   }
 
   function addUpdateButton(){
-    if (document.getElementById('updateAppButton')) return;
     var resetButton = document.getElementById('resetAppButton');
     if (!resetButton || !resetButton.parentElement) return;
 
-    var button = document.createElement('button');
-    button.className = 'equipment-delete-row';
-    button.id = 'updateAppButton';
-    button.type = 'button';
-    button.style.color = 'var(--blue)';
-    button.textContent = 'Обновить приложение';
-    button.addEventListener('click', updateApp);
-    resetButton.parentElement.insertBefore(button, resetButton);
+    var button = document.getElementById('updateAppButton');
+    if (!button) {
+      button = document.createElement('button');
+      button.className = 'equipment-delete-row';
+      button.id = 'updateAppButton';
+      button.type = 'button';
+      button.style.color = 'var(--blue)';
+      resetButton.parentElement.insertBefore(button, resetButton);
+    }
+    button.textContent = updateInProgress ? 'Обновление…' : 'Обновить приложение';
+    button.onclick = updateApp;
+  }
+
+  function restoreTargetTab(){
+    var url = new URL(window.location.href);
+    var shouldOpenSettings = sessionStorage.getItem('archery-journal:return-settings') === '1' || url.searchParams.get('tab') === 'settings';
+    if (!shouldOpenSettings) return;
+    sessionStorage.removeItem('archery-journal:return-settings');
+    setTimeout(openSettingsTab, 0);
+    setTimeout(openSettingsTab, 150);
   }
 
   function boot(){
     applyPreloadedData();
     addUpdateButton();
     addVersionFooter();
+    restoreTargetTab();
     saveAppDataSoon();
   }
 
@@ -246,11 +266,11 @@ function patchHtml(html) {
     patched = patched.replace('</style>', `\n${PATCH_CSS}\n</style>`);
   }
 
-  if (!patched.includes('__ARCHERY_JOURNAL_SAVED_DATA__')) {
+  if (!patched.includes('id="archeryJournalPersistenceBoot"')) {
     patched = patched.replace('<script>\nlet sessions=', `${PERSISTENCE_BOOT_SCRIPT}\n<script>\nlet sessions=`);
   }
 
-  if (!patched.includes('archery-journal:data:v3')) {
+  if (!patched.includes('id="archeryJournalRuntimePatch"')) {
     patched = patched.replace('</body>', `${PATCH_SCRIPT}\n</body>`);
   }
 
