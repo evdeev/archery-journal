@@ -1,5 +1,5 @@
-const CACHE_VERSION = 'archery-journal-v15-force-runtime-replace';
-const APP_VERSION = '1.14';
+const CACHE_VERSION = 'archery-journal-v16-restore-1-12-runtime';
+const APP_VERSION = '1.16';
 const APP_SHELL = [
   './',
   './index.html',
@@ -23,7 +23,6 @@ const PATCH_CSS = `
     .settings-screen,.create-screen,.note-screen,.equipment-screen{padding-top:calc(10px + var(--safe-top)) !important;}
     .settings-nav{position:relative;}
     .note-textarea{min-height:calc(100vh - 92px - var(--safe-top) - var(--safe-bottom)) !important;}
-    .session-delete-group{margin-top:24px;}
     .settings-version-footer{padding:36px 24px calc(28px + env(safe-area-inset-bottom,0px));text-align:center;color:#8e8e93;}
     .settings-version-value{font-size:17px;line-height:22px;margin-bottom:10px;}
     .settings-version-copy{font-size:13px;line-height:18px;}
@@ -229,58 +228,6 @@ const PATCH_SCRIPT = `
     button.onclick = updateApp;
   }
 
-  function deleteCurrentSession(event){
-    if (event) event.preventDefault();
-    if (typeof session === 'undefined' || !session || !session.id) return;
-
-    var ok = confirm('Удалить эту сессию?\n\nЭто действие нельзя отменить.');
-    if (!ok) return;
-
-    try {
-      if (typeof sessions !== 'undefined' && Array.isArray(sessions)) {
-        sessions = sessions.filter(function(item){ return item.id !== session.id; });
-      }
-      if (typeof currentSessionId !== 'undefined') currentSessionId = sessions[0] ? sessions[0].id : null;
-      if (typeof session !== 'undefined') session = sessions[0] || null;
-      if (typeof seed !== 'undefined') seed = session ? session.seed : [];
-      if (typeof active !== 'undefined') active = null;
-      if (typeof keyboardVisible !== 'undefined') keyboardVisible = false;
-
-      saveAppDataNow();
-
-      var settingsScreen = document.getElementById('settingsScreen');
-      if (settingsScreen) settingsScreen.classList.remove('open');
-      if (typeof hideKeyboardSilent === 'function') hideKeyboardSilent();
-      if (typeof showRoot === 'function') showRoot('history');
-      if (typeof renderHistory === 'function') renderHistory();
-      if (typeof renderStats === 'function') renderStats();
-    } catch (error) {
-      console.warn('Unable to delete session', error);
-    }
-  }
-
-  function addDeleteSessionButton(){
-    var settingsContent = document.querySelector('#settingsScreen .settings-content');
-    if (!settingsContent) return;
-
-    var button = document.getElementById('deleteSessionButton');
-    if (!button) {
-      var section = document.createElement('section');
-      section.className = 'group session-delete-group';
-      section.id = 'deleteSessionGroup';
-
-      button = document.createElement('button');
-      button.className = 'equipment-delete-row';
-      button.id = 'deleteSessionButton';
-      button.type = 'button';
-      button.textContent = 'Удалить сессию';
-
-      section.appendChild(button);
-      settingsContent.appendChild(section);
-    }
-    button.onclick = deleteCurrentSession;
-  }
-
   function restoreTargetTab(){
     var url = new URL(window.location.href);
     var shouldOpenSettings = sessionStorage.getItem('archery-journal:return-settings') === '1' || url.searchParams.get('tab') === 'settings';
@@ -293,7 +240,6 @@ const PATCH_SCRIPT = `
   function boot(){
     applyPreloadedData();
     addUpdateButton();
-    addDeleteSessionButton();
     addVersionFooter();
     restoreTargetTab();
     saveAppDataSoon();
@@ -303,7 +249,7 @@ const PATCH_SCRIPT = `
   else boot();
 
   ['click','input','change','focusout'].forEach(function(eventName){
-    document.addEventListener(eventName, function(){ setTimeout(function(){ addUpdateButton(); addDeleteSessionButton(); addVersionFooter(); saveAppDataSoon(); }, 0); }, true);
+    document.addEventListener(eventName, function(){ setTimeout(function(){ addUpdateButton(); addVersionFooter(); saveAppDataSoon(); }, 0); }, true);
   });
 
   document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'hidden') saveAppDataNow(); });
@@ -312,14 +258,8 @@ const PATCH_SCRIPT = `
 })();
 </script>`;
 
-function removeOldPatchScripts(html) {
-  return html
-    .replace(/<script id="archeryJournalPersistenceBoot">[\s\S]*?<\/script>/g, '')
-    .replace(/<script id="archeryJournalRuntimePatch">[\s\S]*?<\/script>/g, '');
-}
-
 function patchHtml(html) {
-  let patched = removeOldPatchScripts(html);
+  let patched = html;
 
   patched = patched.replace(
     /<meta name="viewport" content="[^"]*"\s*\/?>/,
@@ -330,8 +270,13 @@ function patchHtml(html) {
     patched = patched.replace('</style>', `\n${PATCH_CSS}\n</style>`);
   }
 
-  patched = patched.replace('<script>\nlet sessions=', `${PERSISTENCE_BOOT_SCRIPT}\n<script>\nlet sessions=`);
-  patched = patched.replace('</body>', `${PATCH_SCRIPT}\n</body>`);
+  if (!patched.includes('id="archeryJournalPersistenceBoot"')) {
+    patched = patched.replace('<script>\nlet sessions=', `${PERSISTENCE_BOOT_SCRIPT}\n<script>\nlet sessions=`);
+  }
+
+  if (!patched.includes('id="archeryJournalRuntimePatch"')) {
+    patched = patched.replace('</body>', `${PATCH_SCRIPT}\n</body>`);
+  }
 
   return patched;
 }
