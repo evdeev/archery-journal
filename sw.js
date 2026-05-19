@@ -1,4 +1,5 @@
-const CACHE_VERSION = 'archery-journal-v8-persist-lexical-state';
+const CACHE_VERSION = 'archery-journal-v9-version-footer';
+const APP_VERSION = '1.08';
 const APP_SHELL = [
   './',
   './index.html',
@@ -22,228 +23,35 @@ const SAFE_AREA_CSS = `
     .settings-screen,.create-screen,.note-screen,.equipment-screen{padding-top:calc(10px + var(--safe-top)) !important;}
     .settings-nav{position:relative;}
     .note-textarea{min-height:calc(100vh - 92px - var(--safe-top) - var(--safe-bottom)) !important;}
-    .app-update-overlay{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:rgba(242,242,247,.72);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);padding:24px;}
-    [data-theme="dark"] .app-update-overlay{background:rgba(0,0,0,.62);}
-    .app-update-card{width:min(272px,100%);background:var(--card);border-radius:22px;box-shadow:0 18px 55px rgba(0,0,0,.18);padding:24px 20px 20px;text-align:center;color:var(--text);}
-    .app-update-spinner{width:34px;height:34px;margin:0 auto 16px;border-radius:50%;border:3px solid rgba(142,142,147,.22);border-top-color:var(--blue);animation:appUpdateSpin .8s linear infinite;}
-    .app-update-title{font-size:17px;font-weight:700;line-height:22px;margin-bottom:5px;}
-    .app-update-subtitle{font-size:14px;line-height:19px;color:var(--muted);}
-    #updateAppButton[disabled]{opacity:.55;}
-    @keyframes appUpdateSpin{to{transform:rotate(360deg)}}
+    .settings-version-footer{padding:36px 24px calc(28px + env(safe-area-inset-bottom,0px));text-align:center;color:#8e8e93;}
+    .settings-version-value{font-size:17px;line-height:22px;margin-bottom:10px;}
+    .settings-version-copy{font-size:13px;line-height:18px;}
 `;
 
-const APP_UPDATE_SCRIPT = `
+const APP_VERSION_SCRIPT = `
 <script>
 (function(){
-  var lastTouchEnd = 0;
-  var updateInProgress = false;
-  var STORAGE_KEY = 'archery-journal:data:v2';
-  var OLD_STORAGE_KEY = 'archery-journal:data:v1';
-  var SAVE_DEBOUNCE_MS = 250;
-  var saveTimer = null;
-  var restoredOnce = false;
+  function addVersionFooter(){
+    var settingsScreen = document.querySelector('.settings-screen');
+    if (!settingsScreen) return;
+    if (document.getElementById('settingsVersionFooter')) return;
 
-  document.addEventListener('touchend', function(event) {
-    var now = Date.now();
-    if (now - lastTouchEnd <= 350) event.preventDefault();
-    lastTouchEnd = now;
-  }, { passive: false });
+    var footer = document.createElement('div');
+    footer.className = 'settings-version-footer';
+    footer.id = 'settingsVersionFooter';
+    footer.innerHTML = '<div class="settings-version-value">Версия ${APP_VERSION}</div><div class="settings-version-copy">© 2026 Boris Evdeev</div>';
 
-  document.addEventListener('gesturestart', function(event) {
-    event.preventDefault();
-  }, { passive: false });
-
-  document.addEventListener('dblclick', function(event) {
-    event.preventDefault();
-  }, { passive: false });
-
-  function getSessions(){
-    try { return (typeof sessions !== 'undefined' && Array.isArray(sessions)) ? sessions : []; }
-    catch(error) { return []; }
-  }
-
-  function getCurrentSessionId(){
-    try { return (typeof currentSessionId !== 'undefined') ? currentSessionId : null; }
-    catch(error) { return null; }
-  }
-
-  function getEquipment(){
-    try { return (typeof equipment !== 'undefined' && equipment) ? equipment : null; }
-    catch(error) { return null; }
-  }
-
-  function currentData(){
-    return {
-      version: 2,
-      savedAt: new Date().toISOString(),
-      sessions: getSessions(),
-      currentSessionId: getCurrentSessionId(),
-      equipment: getEquipment()
-    };
-  }
-
-  function saveAppDataNow(){
-    try {
-      var data = currentData();
-      if (!Array.isArray(data.sessions)) return;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    } catch (error) {
-      console.warn('Unable to save Archery Journal data', error);
-    }
-  }
-
-  function saveAppDataSoon(){
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(saveAppDataNow, SAVE_DEBOUNCE_MS);
-  }
-
-  function readStoredData(){
-    var raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(OLD_STORAGE_KEY);
-    if (!raw) return null;
-    try { return JSON.parse(raw); }
-    catch(error) { return null; }
-  }
-
-  function restoreAppData(){
-    if (restoredOnce) return;
-    restoredOnce = true;
-
-    try {
-      var data = readStoredData();
-      if (!data || !Array.isArray(data.sessions) || !data.sessions.length) return;
-
-      if (typeof sessions !== 'undefined') {
-        sessions = data.sessions;
-      }
-
-      if (typeof currentSessionId !== 'undefined') {
-        currentSessionId = data.currentSessionId || (sessions[0] && sessions[0].id) || null;
-      }
-
-      if (typeof session !== 'undefined') {
-        session = sessions.find(function(item){ return item.id === currentSessionId; }) || sessions[0] || null;
-      }
-
-      if (typeof seed !== 'undefined') {
-        seed = session ? session.seed : [];
-      }
-
-      if (data.equipment && typeof equipment !== 'undefined' && equipment) {
-        Object.assign(equipment, data.equipment);
-      }
-
-      if (typeof renderHistory === 'function') renderHistory();
-      if (typeof renderStats === 'function') renderStats();
-      if (typeof renderEquipment === 'function') renderEquipment();
-      if (typeof render === 'function' && typeof session !== 'undefined' && session) render();
-    } catch (error) {
-      console.warn('Unable to restore Archery Journal data', error);
-    }
-  }
-
-  function installPersistence(){
-    restoreAppData();
-    saveAppDataSoon();
-
-    ['click','input','change','focusout'].forEach(function(eventName){
-      document.addEventListener(eventName, saveAppDataSoon, true);
-    });
-
-    document.addEventListener('visibilitychange', function(){
-      if (document.visibilityState === 'hidden') saveAppDataNow();
-    });
-
-    window.addEventListener('pagehide', saveAppDataNow);
-    setInterval(saveAppDataNow, 5000);
-  }
-
-  function showUpdateOverlay(){
-    if (document.getElementById('appUpdateOverlay')) return;
-
-    var overlay = document.createElement('div');
-    overlay.className = 'app-update-overlay';
-    overlay.id = 'appUpdateOverlay';
-    overlay.setAttribute('role','status');
-    overlay.setAttribute('aria-live','polite');
-    overlay.innerHTML = '<div class="app-update-card"><div class="app-update-spinner"></div><div class="app-update-title">Обновляем приложение</div><div class="app-update-subtitle">Загружаем новую версию и очищаем кэш…</div></div>';
-    document.body.appendChild(overlay);
-  }
-
-  async function hardRefreshApp(event){
-    if (event) event.preventDefault();
-    if (updateInProgress) return;
-    updateInProgress = true;
-
-    saveAppDataNow();
-
-    var button = document.getElementById('updateAppButton');
-    if (button) {
-      button.disabled = true;
-      button.textContent = 'Обновление…';
-    }
-
-    showUpdateOverlay();
-
-    try {
-      if ('caches' in window) {
-        var keys = await caches.keys();
-        await Promise.all(keys
-          .filter(function(key){ return key.indexOf('archery-journal-') === 0; })
-          .map(function(key){ return caches.delete(key); })
-        );
-      }
-
-      if ('serviceWorker' in navigator) {
-        var registration = await navigator.serviceWorker.getRegistration();
-        if (registration) {
-          await registration.update();
-          if (registration.waiting) registration.waiting.postMessage({type:'SKIP_WAITING'});
-        }
-      }
-    } catch (error) {
-      console.warn('App update cleanup failed', error);
-    }
-
-    setTimeout(function(){
-      var url = new URL(window.location.href);
-      url.searchParams.set('appUpdate', Date.now().toString());
-      window.location.replace(url.toString());
-    }, 350);
-  }
-
-  function addUpdateButton(){
-    if (document.getElementById('updateAppButton')) return;
-
-    var resetButton = document.getElementById('resetAppButton');
-    if (!resetButton || !resetButton.parentElement) return;
-
-    var button = document.createElement('button');
-    button.className = 'equipment-delete-row';
-    button.id = 'updateAppButton';
-    button.type = 'button';
-    button.style.color = 'var(--blue)';
-    button.textContent = 'Обновить приложение';
-    button.addEventListener('click', hardRefreshApp);
-
-    resetButton.parentElement.insertBefore(button, resetButton);
-  }
-
-  function boot(){
-    installPersistence();
-    addUpdateButton();
+    settingsScreen.appendChild(footer);
   }
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', boot);
+    document.addEventListener('DOMContentLoaded', addVersionFooter);
   } else {
-    boot();
+    addVersionFooter();
   }
 
   document.addEventListener('click', function(){
-    setTimeout(function(){
-      addUpdateButton();
-      saveAppDataSoon();
-    }, 0);
+    setTimeout(addVersionFooter, 0);
   }, true);
 })();
 </script>`;
@@ -256,12 +64,12 @@ function patchHtml(html) {
     '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />'
   );
 
-  if (!patched.includes('/* iOS safe area hotfix */')) {
-    patched = patched.replace('</style>', `\n    /* iOS safe area hotfix */\n${SAFE_AREA_CSS}\n</style>`);
+  if (!patched.includes('settings-version-footer')) {
+    patched = patched.replace('</style>', `\n${SAFE_AREA_CSS}\n</style>`);
   }
 
-  if (!patched.includes('archery-journal:data:v2')) {
-    patched = patched.replace('</body>', `${APP_UPDATE_SCRIPT}\n</body>`);
+  if (!patched.includes('Версия ${APP_VERSION}')) {
+    patched = patched.replace('</body>', `${APP_VERSION_SCRIPT}\n</body>`);
   }
 
   return patched;
@@ -278,12 +86,6 @@ async function htmlResponse(response) {
     }
   });
 }
-
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
-    self.skipWaiting();
-  }
-});
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
