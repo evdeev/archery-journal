@@ -1,0 +1,114 @@
+name: Split CSS on develop
+
+on:
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  split-css:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Split css/app.css into modules
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          css_path = Path('css/app.css')
+          css = css_path.read_text(encoding='utf-8')
+
+          if '@import "./base.css";' in css:
+            print('CSS already split into modules')
+            raise SystemExit(0)
+
+          def find_anchor(text, anchor):
+            index = text.find(anchor)
+            if index == -1:
+              raise SystemExit(f'Anchor not found: {anchor}')
+            return index
+
+          anchors = {
+            'session': find_anchor(css, '.note-card'),
+            'history': find_anchor(css, '.screen{display:none}'),
+            'stats': find_anchor(css, '.stats-segmented'),
+            'equipment': find_anchor(css, '.tabs{grid-template-columns:repeat(4,1fr)}'),
+          }
+
+          chunks = {
+            'base.css': css[:anchors['session']].strip() + '\n',
+            'session.css': css[anchors['session']:anchors['history']].strip() + '\n',
+            'history.css': css[anchors['history']:anchors['stats']].strip() + '\n',
+            'stats.css': css[anchors['stats']:anchors['equipment']].strip() + '\n',
+            'equipment.css': css[anchors['equipment']:].strip() + '\n',
+          }
+
+          headers = {
+            'base.css': '/* Base tokens, theme, typography and generic iOS primitives. */\n',
+            'session.css': '/* Session screen, scoring table, notes and score keyboard. */\n',
+            'history.css': '/* Root shell, history list, bottom tabs and create-session screen. */\n',
+            'stats.css': '/* Statistics cards, charts and period controls. */\n',
+            'equipment.css': '/* Equipment screens, bow/arrow cards and equipment forms. */\n',
+          }
+
+          for name, content in chunks.items():
+            Path('css', name).write_text(headers[name] + content, encoding='utf-8')
+
+          css_path.write_text('''/* Archery Journal v2.0 CSS entry point. */
+@import "./base.css";
+@import "./session.css";
+@import "./history.css";
+@import "./stats.css";
+@import "./equipment.css";
+''', encoding='utf-8')
+          PY
+
+      - name: Update refactoring notes
+        run: |
+          cat > REFACTORING.md <<'EOF'
+          # Refactoring plan
+
+          ## Цель v2.0
+
+          Стабилизировать кодовую базу без изменения пользовательского поведения.
+
+          ## Сделано
+
+          - CSS вынесен из `index.html` в `css/app.css`.
+          - Основной JavaScript вынесен из `index.html` в `js/app.js`.
+          - `index.html` оставлен как shell PWA с секциями экранов.
+          - `css/app.css` стал точкой входа и подключает CSS-модули через `@import`.
+          - CSS разделен на модули:
+            - `css/base.css`
+            - `css/session.css`
+            - `css/history.css`
+            - `css/stats.css`
+            - `css/equipment.css`
+
+          ## Следующие шаги
+
+          1. Разделить `js/app.js` на модули: storage, session, history, stats, equipment, settings.
+          2. Убрать runtime injection из service worker.
+          3. Перенести PWA update/persistence из `sw.js` в нормальный JS-модуль.
+          4. Вернуть удаление сессии уже в нормальной архитектуре, не через `sw.js`.
+          EOF
+
+      - name: Commit CSS modules to develop
+        run: |
+          if git diff --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add css/app.css css/base.css css/session.css css/history.css css/stats.css css/equipment.css REFACTORING.md
+          git commit -m "refactor: split css into modules"
+          git push origin HEAD:develop
