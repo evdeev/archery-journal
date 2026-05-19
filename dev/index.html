@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
   <meta name="color-scheme" content="light dark" />
 
-  <link rel="manifest" href="./manifest.webmanifest?v=2.0-dev.5" />
+  <link rel="manifest" href="./manifest.webmanifest?v=2.0-dev.6" />
   <link rel="icon" href="./icons/icon-32.png" sizes="32x32" />
   <link rel="icon" href="./icons/icon-16.png" sizes="16x16" />
   <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
@@ -20,7 +20,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="Archery DEV" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <link rel="stylesheet" href="./css/app.css?v=2.0-dev.5" />
+  <link rel="stylesheet" href="./css/app.css?v=2.0-dev.6" />
 </head>
 <body class="root-mode history-tab">
   <section class="screen active" id="historyScreen">
@@ -157,13 +157,14 @@
     </div>
   </section>
 
-  <script src="./js/app.js?v=2.0-dev.5" defer></script>
-  <script src="./js/storage.js?v=2.0-dev.5" defer></script>
-  <script src="./js/runtime.js?v=2.0-dev.5" defer></script>
+  <script src="./js/app.js?v=2.0-dev.6" defer></script>
+  <script src="./js/storage.js?v=2.0-dev.6" defer></script>
+  <script src="./js/settings.js?v=2.0-dev.6" defer></script>
+  <script src="./js/runtime.js?v=2.0-dev.6" defer></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js?v=2.0-dev.5', { scope: './' }).catch(console.error);
+        navigator.serviceWorker.register('./sw.js?v=2.0-dev.6', { scope: './' }).catch(console.error);
       });
     }
   </script>
