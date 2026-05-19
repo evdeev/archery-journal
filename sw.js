@@ -1,5 +1,5 @@
-const CACHE_VERSION = 'archery-journal-v20-dev-3-storage';
-const APP_VERSION = '2.0-dev.3';
+const CACHE_VERSION = 'archery-journal-v20-dev-5-settings-module';
+const APP_VERSION = '2.0-dev.5';
 const APP_SHELL = [
   './',
   './index.html',
@@ -13,6 +13,7 @@ const APP_SHELL = [
   './css/runtime.css',
   './js/app.js',
   './js/storage.js',
+  './js/settings.js',
   './js/runtime.js',
   './icons/icon-16.png',
   './icons/icon-32.png',
