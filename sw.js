@@ -1,5 +1,5 @@
-const CACHE_VERSION = 'archery-journal-v10-update-and-version';
-const APP_VERSION = '1.09';
+const CACHE_VERSION = 'archery-journal-v11-persist-state';
+const APP_VERSION = '1.10';
 const APP_SHELL = [
   './',
   './index.html',
@@ -36,11 +36,39 @@ const PATCH_CSS = `
     @keyframes appUpdateSpin{to{transform:rotate(360deg)}}
 `;
 
+const PERSISTENCE_BOOT_SCRIPT = `
+<script>
+(function(){
+  var STORAGE_KEY = 'archery-journal:data:v3';
+  var OLD_KEYS = ['archery-journal:data:v2','archery-journal:data:v1'];
+  var raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) {
+    for (var i = 0; i < OLD_KEYS.length; i++) {
+      raw = localStorage.getItem(OLD_KEYS[i]);
+      if (raw) break;
+    }
+  }
+  if (!raw) return;
+
+  try {
+    var data = JSON.parse(raw);
+    if (!data || !Array.isArray(data.sessions)) return;
+
+    window.__ARCHERY_JOURNAL_SAVED_DATA__ = data;
+  } catch (error) {
+    console.warn('Unable to preload Archery Journal data', error);
+  }
+})();
+</script>`;
+
 const PATCH_SCRIPT = `
 <script>
 (function(){
   var lastTouchEnd = 0;
   var updateInProgress = false;
+  var STORAGE_KEY = 'archery-journal:data:v3';
+  var SAVE_DEBOUNCE_MS = 200;
+  var saveTimer = null;
 
   document.addEventListener('touchend', function(event) {
     var now = Date.now();
@@ -50,6 +78,60 @@ const PATCH_SCRIPT = `
 
   document.addEventListener('gesturestart', function(event) { event.preventDefault(); }, { passive: false });
   document.addEventListener('dblclick', function(event) { event.preventDefault(); }, { passive: false });
+
+  function getSessions(){
+    try { return (typeof sessions !== 'undefined' && Array.isArray(sessions)) ? sessions : []; }
+    catch(error) { return []; }
+  }
+
+  function getCurrentSessionId(){
+    try { return (typeof currentSessionId !== 'undefined') ? currentSessionId : null; }
+    catch(error) { return null; }
+  }
+
+  function getEquipment(){
+    try { return (typeof equipment !== 'undefined' && equipment) ? equipment : null; }
+    catch(error) { return null; }
+  }
+
+  function saveAppDataNow(){
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        version: 3,
+        savedAt: new Date().toISOString(),
+        sessions: getSessions(),
+        currentSessionId: getCurrentSessionId(),
+        equipment: getEquipment()
+      }));
+    } catch (error) {
+      console.warn('Unable to save Archery Journal data', error);
+    }
+  }
+
+  function saveAppDataSoon(){
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveAppDataNow, SAVE_DEBOUNCE_MS);
+  }
+
+  function applyPreloadedData(){
+    var data = window.__ARCHERY_JOURNAL_SAVED_DATA__;
+    if (!data || !Array.isArray(data.sessions)) return;
+
+    try {
+      if (typeof sessions !== 'undefined') sessions = data.sessions;
+      if (typeof currentSessionId !== 'undefined') currentSessionId = data.currentSessionId || (sessions[0] && sessions[0].id) || null;
+      if (typeof session !== 'undefined') session = sessions.find(function(item){ return item.id === currentSessionId; }) || sessions[0] || null;
+      if (typeof seed !== 'undefined') seed = session ? session.seed : [];
+      if (data.equipment && typeof equipment !== 'undefined' && equipment) Object.assign(equipment, data.equipment);
+
+      if (typeof renderHistory === 'function') renderHistory();
+      if (typeof renderStats === 'function') renderStats();
+      if (typeof renderEquipment === 'function') renderEquipment();
+      if (typeof render === 'function' && typeof session !== 'undefined' && session) render();
+    } catch (error) {
+      console.warn('Unable to apply Archery Journal data', error);
+    }
+  }
 
   function addVersionFooter(){
     var rootSettings = document.getElementById('rootSettingsScreen');
@@ -79,6 +161,8 @@ const PATCH_SCRIPT = `
     if (event) event.preventDefault();
     if (updateInProgress) return;
     updateInProgress = true;
+
+    saveAppDataNow();
 
     var button = document.getElementById('updateAppButton');
     if (button) {
@@ -131,14 +215,22 @@ const PATCH_SCRIPT = `
   }
 
   function boot(){
+    applyPreloadedData();
     addUpdateButton();
     addVersionFooter();
+    saveAppDataSoon();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
 
-  document.addEventListener('click', function(){ setTimeout(boot, 0); }, true);
+  ['click','input','change','focusout'].forEach(function(eventName){
+    document.addEventListener(eventName, function(){ setTimeout(function(){ boot(); saveAppDataSoon(); }, 0); }, true);
+  });
+
+  document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'hidden') saveAppDataNow(); });
+  window.addEventListener('pagehide', saveAppDataNow);
+  setInterval(saveAppDataNow, 5000);
 })();
 </script>`;
 
@@ -154,7 +246,11 @@ function patchHtml(html) {
     patched = patched.replace('</style>', `\n${PATCH_CSS}\n</style>`);
   }
 
-  if (!patched.includes('updateAppButton') || !patched.includes('settingsVersionFooter')) {
+  if (!patched.includes('__ARCHERY_JOURNAL_SAVED_DATA__')) {
+    patched = patched.replace('<script>\nlet sessions=', `${PERSISTENCE_BOOT_SCRIPT}\n<script>\nlet sessions=`);
+  }
+
+  if (!patched.includes('archery-journal:data:v3')) {
     patched = patched.replace('</body>', `${PATCH_SCRIPT}\n</body>`);
   }
 
