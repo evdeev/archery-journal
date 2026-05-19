@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'archery-journal-v16-restore-1-12-runtime-dev-bypass';
+const CACHE_VERSION = 'archery-journal-prod-1-16-dev-isolated';
 const APP_VERSION = '1.16';
 const APP_SHELL = [
   './',
@@ -15,23 +15,45 @@ const APP_SHELL = [
   './icons/icon.svg'
 ];
 
+function isDevPreviewRequest(requestUrl) {
+  return requestUrl.pathname.includes('/archery-journal/dev/');
+}
+
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
+});
+
+self.addEventListener('install', (event) => {
+  self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE_VERSION).then((cache) => cache.addAll(APP_SHELL))
+  );
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys()
+      .then((keys) => Promise.all(
+        keys
+          .filter((key) => key.startsWith('archery-journal-') && key !== CACHE_VERSION)
+          .map((key) => caches.delete(key))
+      ))
+      .then(() => self.clients.claim())
+  );
+});
+
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
   const requestUrl = new URL(event.request.url);
-
   if (requestUrl.origin !== self.location.origin) return;
 
-  // IMPORTANT:
-  // Never intercept DEV preview from production service worker.
-  // Otherwise /dev gets replaced by cached production HTML.
-  if (requestUrl.pathname.includes('/archery-journal/dev/')) {
+  if (isDevPreviewRequest(requestUrl)) {
     event.respondWith(fetch(event.request, { cache: 'no-store' }));
     return;
   }
 
-  const acceptsHtml = event.request.mode === 'navigate' ||
-    (event.request.headers.get('accept') || '').includes('text/html');
+  const isNavigation = event.request.mode === 'navigate';
 
   event.respondWith(
     fetch(event.request, { cache: 'no-store' })
@@ -40,8 +62,10 @@ self.addEventListener('fetch', (event) => {
         caches.open(CACHE_VERSION).then((cache) => cache.put(event.request, copy));
         return response;
       })
-      .catch(() => caches.match(event.request).then((cached) =>
-        cached || caches.match('./index.html')
-      ))
+      .catch(() => caches.match(event.request).then((cached) => {
+        if (cached) return cached;
+        if (isNavigation) return caches.match('./index.html');
+        return undefined;
+      }))
   );
 });
