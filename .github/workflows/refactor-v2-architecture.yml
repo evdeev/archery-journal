@@ -1,0 +1,116 @@
+name: Refactor V2 Architecture
+
+on:
+  push:
+    branches:
+      - refactor/v2-architecture
+    paths:
+      - '.github/workflows/refactor-v2-architecture.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  split-index:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/v2-architecture
+
+      - name: Split index.html into CSS and JS bundles
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          index_path = Path('index.html')
+          html = index_path.read_text(encoding='utf-8')
+
+          css_dir = Path('css')
+          js_dir = Path('js')
+          css_dir.mkdir(exist_ok=True)
+          js_dir.mkdir(exist_ok=True)
+
+          style_match = re.search(r'<style>\s*([\s\S]*?)\s*</style>', html)
+          if not style_match:
+            raise SystemExit('No <style> block found')
+          css = style_match.group(1).strip() + '\n'
+
+          script_matches = list(re.finditer(r'<script>\s*([\s\S]*?)\s*</script>', html))
+          inline_scripts = []
+          sw_script = None
+          for m in script_matches:
+            body = m.group(1).strip()
+            if "serviceWorker" in body and "navigator.serviceWorker.register" in body:
+              sw_script = m.group(0)
+            else:
+              inline_scripts.append(m)
+
+          if not inline_scripts:
+            raise SystemExit('No app script block found')
+
+          app_js = '\n\n'.join(m.group(1).strip() for m in inline_scripts) + '\n'
+
+          # Remove obsolete runtime-injection artifacts if they accidentally exist in HTML.
+          app_js = re.sub(r'<script id="archeryJournalPersistenceBoot">[\s\S]*?</script>', '', app_js)
+          app_js = re.sub(r'<script id="archeryJournalRuntimePatch">[\s\S]*?</script>', '', app_js)
+
+          (css_dir / 'app.css').write_text('/* Archery Journal v2.0 extracted styles */\n' + css, encoding='utf-8')
+          (js_dir / 'app.js').write_text('/* Archery Journal v2.0 extracted application code */\n' + app_js, encoding='utf-8')
+
+          # Replace style block with stylesheet link.
+          html = html[:style_match.start()] + '<link rel="stylesheet" href="./css/app.css" />' + html[style_match.end():]
+
+          # Remove every non-service-worker inline app script.
+          for m in reversed(inline_scripts):
+            html = html[:m.start()] + '' + html[m.end():]
+
+          # Insert external app script before the service-worker registration script or before body end.
+          script_tag = '<script src="./js/app.js" defer></script>\n'
+          if sw_script and sw_script in html:
+            html = html.replace(sw_script, script_tag + sw_script)
+          else:
+            html = html.replace('</body>', script_tag + '</body>')
+
+          # Normalize excessive blank lines a bit without changing layout HTML.
+          html = re.sub(r'\n{4,}', '\n\n\n', html)
+          index_path.write_text(html, encoding='utf-8')
+          PY
+
+      - name: Create refactor notes
+        run: |
+          cat > REFACTORING.md <<'EOF'
+          # Refactoring plan
+
+          ## Цель v2.0
+
+          Стабилизировать кодовую базу без изменения пользовательского поведения.
+
+          ## Что сделано в первом шаге
+
+          - CSS вынесен из `index.html` в `css/app.css`.
+          - Основной JavaScript вынесен из `index.html` в `js/app.js`.
+          - `index.html` оставлен как shell PWA с секциями экранов.
+          - `sw.js` пока не переписывается и остается совместимым со стабильной версией `1.16`.
+
+          ## Следующие шаги
+
+          1. Разделить `css/app.css` на небольшие CSS-модули.
+          2. Разделить `js/app.js` на модули: storage, session, history, stats, equipment, settings.
+          3. Убрать runtime injection из service worker.
+          4. Вернуть удаление сессии уже в нормальной архитектуре, не через `sw.js`.
+          EOF
+
+      - name: Commit refactor output
+        run: |
+          if git diff --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html css/app.css js/app.js REFACTORING.md
+          git commit -m "refactor: split index into css and js bundles"
+          git push origin refactor/v2-architecture
