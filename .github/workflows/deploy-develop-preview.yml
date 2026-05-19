@@ -30,7 +30,7 @@ jobs:
           import re
 
           PREVIEW_BASE = '/archery-journal/dev/'
-          BUILD = '2.0-dev.4'
+          BUILD = '2.0-dev.5'
 
           index = Path('preview/index.html')
           if index.exists():
