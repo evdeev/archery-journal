@@ -13,6 +13,7 @@ const APP_SHELL = [
   './css/runtime.css',
   './js/app.js',
   './js/storage.js',
+  './js/settings.js',
   './js/runtime.js',
   './icons/icon-16.png',
   './icons/icon-32.png',
