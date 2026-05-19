@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'archery-journal-v3-disable-zoom';
+const CACHE_VERSION = 'archery-journal-v4-app-update-button';
 const APP_SHELL = [
   './',
   './index.html',
@@ -24,7 +24,7 @@ const SAFE_AREA_CSS = `
     .note-textarea{min-height:calc(100vh - 92px - var(--safe-top) - var(--safe-bottom)) !important;}
 `;
 
-const DISABLE_ZOOM_SCRIPT = `
+const APP_UPDATE_SCRIPT = `
 <script>
 (function(){
   var lastTouchEnd = 0;
@@ -41,6 +41,53 @@ const DISABLE_ZOOM_SCRIPT = `
   document.addEventListener('dblclick', function(event) {
     event.preventDefault();
   }, { passive: false });
+
+  async function hardRefreshApp(){
+    try {
+      if ('caches' in window) {
+        var keys = await caches.keys();
+        await Promise.all(keys.map(function(key){ return caches.delete(key); }));
+      }
+
+      if ('serviceWorker' in navigator) {
+        var registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map(function(registration){ return registration.unregister(); }));
+      }
+    } catch (error) {
+      console.warn('App update cleanup failed', error);
+    }
+
+    var url = new URL(window.location.href);
+    url.searchParams.set('appUpdate', Date.now().toString());
+    window.location.replace(url.toString());
+  }
+
+  function addUpdateButton(){
+    if (document.getElementById('updateAppButton')) return;
+
+    var resetButton = document.getElementById('resetAppButton');
+    if (!resetButton || !resetButton.parentElement) return;
+
+    var button = document.createElement('button');
+    button.className = 'equipment-delete-row';
+    button.id = 'updateAppButton';
+    button.type = 'button';
+    button.style.color = 'var(--blue)';
+    button.textContent = 'Обновить приложение';
+    button.addEventListener('click', hardRefreshApp);
+
+    resetButton.parentElement.insertBefore(button, resetButton);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', addUpdateButton);
+  } else {
+    addUpdateButton();
+  }
+
+  document.addEventListener('click', function(){
+    setTimeout(addUpdateButton, 0);
+  }, true);
 })();
 </script>`;
 
@@ -56,8 +103,8 @@ function patchHtml(html) {
     patched = patched.replace('</style>', `\n    /* iOS safe area hotfix */\n${SAFE_AREA_CSS}\n</style>`);
   }
 
-  if (!patched.includes('lastTouchEnd <= 350')) {
-    patched = patched.replace('</body>', `${DISABLE_ZOOM_SCRIPT}\n</body>`);
+  if (!patched.includes('updateAppButton')) {
+    patched = patched.replace('</body>', `${APP_UPDATE_SCRIPT}\n</body>`);
   }
 
   return patched;
