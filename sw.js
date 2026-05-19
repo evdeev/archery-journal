@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'archery-journal-prod-1-16-dev-isolated';
+const CACHE_VERSION = 'archery-journal-prod-1-16-runtime-restored-dev-isolated';
 const APP_VERSION = '1.16';
 const APP_SHELL = [
   './',
@@ -15,8 +15,172 @@ const APP_SHELL = [
   './icons/icon.svg'
 ];
 
+const RUNTIME_CSS = `
+.settings-version-footer{padding:36px 24px calc(28px + env(safe-area-inset-bottom,0px));text-align:center;color:#8e8e93;}
+.settings-version-value{font-size:17px;line-height:22px;margin-bottom:10px;}
+.settings-version-copy{font-size:13px;line-height:18px;}
+.app-update-overlay{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:rgba(242,242,247,.72);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);padding:24px;}
+[data-theme="dark"] .app-update-overlay{background:rgba(0,0,0,.62);}
+.app-update-card{width:min(272px,100%);background:var(--card);border-radius:22px;box-shadow:0 18px 55px rgba(0,0,0,.18);padding:24px 20px 20px;text-align:center;color:var(--text);}
+.app-update-spinner{width:34px;height:34px;margin:0 auto 16px;border-radius:50%;border:3px solid rgba(142,142,147,.22);border-top-color:var(--blue);animation:appUpdateSpin .8s linear infinite;}
+.app-update-title{font-size:17px;font-weight:700;line-height:22px;margin-bottom:5px;}
+.app-update-subtitle{font-size:14px;line-height:19px;color:var(--muted);}
+#updateAppButton[disabled]{opacity:.55;}
+@keyframes appUpdateSpin{to{transform:rotate(360deg)}}
+`;
+
+const RUNTIME_SCRIPT = `
+<script id="archeryJournalProductionRuntimePatch">
+(function(){
+  var VERSION = '${APP_VERSION}';
+  var STORAGE_KEY = 'archery-journal:data:v3';
+  var saveTimer = null;
+  var lastTouchEnd = 0;
+
+  document.addEventListener('touchend', function(event) {
+    var now = Date.now();
+    if (now - lastTouchEnd <= 350) event.preventDefault();
+    lastTouchEnd = now;
+  }, { passive: false });
+  document.addEventListener('gesturestart', function(event) { event.preventDefault(); }, { passive: false });
+  document.addEventListener('dblclick', function(event) { event.preventDefault(); }, { passive: false });
+
+  function getSessions(){ try { return Array.isArray(sessions) ? sessions : []; } catch(e) { return []; } }
+  function getCurrentSessionId(){ try { return typeof currentSessionId !== 'undefined' ? currentSessionId : null; } catch(e) { return null; } }
+  function getEquipment(){ try { return typeof equipment !== 'undefined' ? equipment : null; } catch(e) { return null; } }
+
+  function saveNow(){
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        version:3,
+        savedAt:new Date().toISOString(),
+        sessions:getSessions(),
+        currentSessionId:getCurrentSessionId(),
+        equipment:getEquipment()
+      }));
+    } catch(e) { console.warn('Unable to save Archery Journal data', e); }
+  }
+  function saveSoon(){ clearTimeout(saveTimer); saveTimer=setTimeout(saveNow,200); }
+
+  function applyStoredData(){
+    var raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem('archery-journal:data:v2') || localStorage.getItem('archery-journal:data:v1');
+    if (!raw) return;
+    try {
+      var data = JSON.parse(raw);
+      if (!data || !Array.isArray(data.sessions)) return;
+      if (typeof sessions !== 'undefined') sessions = data.sessions;
+      if (typeof currentSessionId !== 'undefined') currentSessionId = data.currentSessionId || (sessions[0] && sessions[0].id) || null;
+      if (typeof session !== 'undefined') session = sessions.find(function(item){ return item.id === currentSessionId; }) || sessions[0] || null;
+      if (typeof seed !== 'undefined') seed = session ? session.seed : [];
+      if (data.equipment && typeof equipment !== 'undefined' && equipment) Object.assign(equipment, data.equipment);
+      if (typeof renderHistory === 'function') renderHistory();
+      if (typeof renderStats === 'function') renderStats();
+      if (typeof renderEquipment === 'function') renderEquipment();
+      if (typeof render === 'function' && typeof session !== 'undefined' && session) render();
+    } catch(e) { console.warn('Unable to restore Archery Journal data', e); }
+  }
+
+  function showOverlay(){
+    if (document.getElementById('appUpdateOverlay')) return;
+    var overlay=document.createElement('div');
+    overlay.className='app-update-overlay';
+    overlay.id='appUpdateOverlay';
+    overlay.innerHTML='<div class="app-update-card"><div class="app-update-spinner"></div><div class="app-update-title">Обновляем приложение</div><div class="app-update-subtitle">Загружаем новую версию и очищаем кэш…</div></div>';
+    document.body.appendChild(overlay);
+  }
+
+  async function updateApp(event){
+    if (event) event.preventDefault();
+    saveNow();
+    sessionStorage.setItem('archery-journal:return-settings','1');
+    var button=document.getElementById('updateAppButton');
+    if (button) { button.disabled=true; button.textContent='Обновление…'; }
+    showOverlay();
+    try {
+      if ('caches' in window) {
+        var keys=await caches.keys();
+        await Promise.all(keys.filter(function(key){ return key.indexOf('archery-journal')===0; }).map(function(key){ return caches.delete(key); }));
+      }
+      if ('serviceWorker' in navigator) {
+        var registrations=await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map(function(registration){ return registration.update(); }));
+      }
+    } catch(e) { console.warn('App update cleanup failed', e); }
+    setTimeout(function(){
+      var url=new URL(window.location.href);
+      url.searchParams.set('appUpdate', Date.now().toString());
+      url.searchParams.set('tab','settings');
+      window.location.replace(url.toString());
+    },350);
+  }
+
+  function renderControls(){
+    var rootSettings=document.getElementById('rootSettingsScreen');
+    var settingsRoot=rootSettings ? rootSettings.querySelector('.root-app') : null;
+    var resetButton=document.getElementById('resetAppButton');
+    if (!settingsRoot || !resetButton || !resetButton.parentElement) return;
+    var button=document.getElementById('updateAppButton');
+    if (!button) {
+      button=document.createElement('button');
+      button.className='equipment-delete-row';
+      button.id='updateAppButton';
+      button.type='button';
+      button.style.color='var(--blue)';
+      resetButton.parentElement.insertBefore(button, resetButton);
+    }
+    button.textContent='Обновить приложение';
+    button.disabled=false;
+    button.onclick=updateApp;
+    var footer=document.getElementById('settingsVersionFooter');
+    if (!footer) {
+      footer=document.createElement('div');
+      footer.className='settings-version-footer';
+      footer.id='settingsVersionFooter';
+      settingsRoot.appendChild(footer);
+    }
+    footer.innerHTML='<div class="settings-version-value">Версия '+VERSION+'</div><div class="settings-version-copy">© 2026 Boris Evdeev</div>';
+  }
+
+  function restoreSettingsTab(){
+    var url=new URL(window.location.href);
+    if (sessionStorage.getItem('archery-journal:return-settings') !== '1' && url.searchParams.get('tab') !== 'settings') return;
+    sessionStorage.removeItem('archery-journal:return-settings');
+    setTimeout(function(){ document.querySelector('.tab[data-tab="settings"]')?.click(); },0);
+    setTimeout(function(){ document.querySelector('.tab[data-tab="settings"]')?.click(); },150);
+  }
+
+  function boot(){ applyStoredData(); renderControls(); restoreSettingsTab(); saveSoon(); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+  ['click','input','change','focusout'].forEach(function(eventName){ document.addEventListener(eventName,function(){ setTimeout(function(){ renderControls(); saveSoon(); },0); },true); });
+  document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'hidden') saveNow(); });
+  window.addEventListener('pagehide', saveNow);
+  setInterval(saveNow,5000);
+  setInterval(renderControls,1500);
+})();
+</script>`;
+
 function isDevPreviewRequest(requestUrl) {
   return requestUrl.pathname.includes('/archery-journal/dev/');
+}
+
+function patchHtml(html) {
+  let patched = html;
+  patched = patched.replace(
+    /<meta name="viewport" content="[^"]*"\s*\/?>/,
+    '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />'
+  );
+  if (!patched.includes('settings-version-footer')) patched = patched.replace('</style>', '\n' + RUNTIME_CSS + '\n</style>');
+  if (!patched.includes('id="archeryJournalProductionRuntimePatch"')) patched = patched.replace('</body>', RUNTIME_SCRIPT + '\n</body>');
+  return patched;
+}
+
+async function htmlResponse(response) {
+  const html = await response.text();
+  return new Response(patchHtml(html), {
+    status: response.status,
+    statusText: response.statusText,
+    headers: {'content-type':'text/html; charset=utf-8','cache-control':'no-cache'}
+  });
 }
 
 self.addEventListener('message', (event) => {
@@ -25,26 +189,19 @@ self.addEventListener('message', (event) => {
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
-  event.waitUntil(
-    caches.open(CACHE_VERSION).then((cache) => cache.addAll(APP_SHELL))
-  );
+  event.waitUntil(caches.open(CACHE_VERSION).then((cache) => cache.addAll(APP_SHELL)));
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(
-        keys
-          .filter((key) => key.startsWith('archery-journal-') && key !== CACHE_VERSION)
-          .map((key) => caches.delete(key))
-      ))
+      .then((keys) => Promise.all(keys.filter((key) => key.startsWith('archery-journal-') && key !== CACHE_VERSION).map((key) => caches.delete(key))))
       .then(() => self.clients.claim())
   );
 });
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
-
   const requestUrl = new URL(event.request.url);
   if (requestUrl.origin !== self.location.origin) return;
 
@@ -53,18 +210,21 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  const isNavigation = event.request.mode === 'navigate';
-
+  const acceptsHtml = event.request.mode === 'navigate' || (event.request.headers.get('accept') || '').includes('text/html');
   event.respondWith(
     fetch(event.request, { cache: 'no-store' })
-      .then((response) => {
-        const copy = response.clone();
-        caches.open(CACHE_VERSION).then((cache) => cache.put(event.request, copy));
+      .then(async (response) => {
+        if (acceptsHtml) {
+          const patched = await htmlResponse(response.clone());
+          caches.open(CACHE_VERSION).then((cache) => cache.put(event.request, patched.clone()));
+          return patched;
+        }
+        caches.open(CACHE_VERSION).then((cache) => cache.put(event.request, response.clone()));
         return response;
       })
       .catch(() => caches.match(event.request).then((cached) => {
         if (cached) return cached;
-        if (isNavigation) return caches.match('./index.html');
+        if (acceptsHtml) return caches.match('./index.html').then((fallback) => fallback ? htmlResponse(fallback) : fallback);
         return undefined;
       }))
   );
