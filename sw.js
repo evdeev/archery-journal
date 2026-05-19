@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'archery-journal-v7-persist-data';
+const CACHE_VERSION = 'archery-journal-v8-persist-lexical-state';
 const APP_SHELL = [
   './',
   './index.html',
@@ -37,7 +37,8 @@ const APP_UPDATE_SCRIPT = `
 (function(){
   var lastTouchEnd = 0;
   var updateInProgress = false;
-  var STORAGE_KEY = 'archery-journal:data:v1';
+  var STORAGE_KEY = 'archery-journal:data:v2';
+  var OLD_STORAGE_KEY = 'archery-journal:data:v1';
   var SAVE_DEBOUNCE_MS = 250;
   var saveTimer = null;
   var restoredOnce = false;
@@ -56,19 +57,36 @@ const APP_UPDATE_SCRIPT = `
     event.preventDefault();
   }, { passive: false });
 
+  function getSessions(){
+    try { return (typeof sessions !== 'undefined' && Array.isArray(sessions)) ? sessions : []; }
+    catch(error) { return []; }
+  }
+
+  function getCurrentSessionId(){
+    try { return (typeof currentSessionId !== 'undefined') ? currentSessionId : null; }
+    catch(error) { return null; }
+  }
+
+  function getEquipment(){
+    try { return (typeof equipment !== 'undefined' && equipment) ? equipment : null; }
+    catch(error) { return null; }
+  }
+
   function currentData(){
     return {
-      version: 1,
+      version: 2,
       savedAt: new Date().toISOString(),
-      sessions: Array.isArray(window.sessions) ? window.sessions : [],
-      currentSessionId: window.currentSessionId || null,
-      equipment: window.equipment || null
+      sessions: getSessions(),
+      currentSessionId: getCurrentSessionId(),
+      equipment: getEquipment()
     };
   }
 
   function saveAppDataNow(){
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(currentData()));
+      var data = currentData();
+      if (!Array.isArray(data.sessions)) return;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     } catch (error) {
       console.warn('Unable to save Archery Journal data', error);
     }
@@ -79,30 +97,45 @@ const APP_UPDATE_SCRIPT = `
     saveTimer = setTimeout(saveAppDataNow, SAVE_DEBOUNCE_MS);
   }
 
+  function readStoredData(){
+    var raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(OLD_STORAGE_KEY);
+    if (!raw) return null;
+    try { return JSON.parse(raw); }
+    catch(error) { return null; }
+  }
+
   function restoreAppData(){
     if (restoredOnce) return;
     restoredOnce = true;
 
     try {
-      var raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
+      var data = readStoredData();
+      if (!data || !Array.isArray(data.sessions) || !data.sessions.length) return;
 
-      var data = JSON.parse(raw);
-      if (!data || !Array.isArray(data.sessions)) return;
-
-      window.sessions = data.sessions;
-      window.currentSessionId = data.currentSessionId || (window.sessions[0] && window.sessions[0].id) || null;
-      window.session = window.sessions.find(function(item){ return item.id === window.currentSessionId; }) || window.sessions[0] || null;
-      window.seed = window.session ? window.session.seed : [];
-
-      if (data.equipment && window.equipment) {
-        Object.assign(window.equipment, data.equipment);
+      if (typeof sessions !== 'undefined') {
+        sessions = data.sessions;
       }
 
-      if (typeof window.renderHistory === 'function') window.renderHistory();
-      if (typeof window.renderStats === 'function') window.renderStats();
-      if (typeof window.renderEquipment === 'function') window.renderEquipment();
-      if (typeof window.render === 'function' && window.session) window.render();
+      if (typeof currentSessionId !== 'undefined') {
+        currentSessionId = data.currentSessionId || (sessions[0] && sessions[0].id) || null;
+      }
+
+      if (typeof session !== 'undefined') {
+        session = sessions.find(function(item){ return item.id === currentSessionId; }) || sessions[0] || null;
+      }
+
+      if (typeof seed !== 'undefined') {
+        seed = session ? session.seed : [];
+      }
+
+      if (data.equipment && typeof equipment !== 'undefined' && equipment) {
+        Object.assign(equipment, data.equipment);
+      }
+
+      if (typeof renderHistory === 'function') renderHistory();
+      if (typeof renderStats === 'function') renderStats();
+      if (typeof renderEquipment === 'function') renderEquipment();
+      if (typeof render === 'function' && typeof session !== 'undefined' && session) render();
     } catch (error) {
       console.warn('Unable to restore Archery Journal data', error);
     }
@@ -227,7 +260,7 @@ function patchHtml(html) {
     patched = patched.replace('</style>', `\n    /* iOS safe area hotfix */\n${SAFE_AREA_CSS}\n</style>`);
   }
 
-  if (!patched.includes('archery-journal:data:v1')) {
+  if (!patched.includes('archery-journal:data:v2')) {
     patched = patched.replace('</body>', `${APP_UPDATE_SCRIPT}\n</body>`);
   }
 
